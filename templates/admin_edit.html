@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Edit — {{ plaque.title }} — PlaqueWorld Admin{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+{% endblock %}
+
+{% block content %}
+<div class="edit-page">
+
+  <div class="edit-header">
+    <h1>Edit Plaque</h1>
+    <div class="edit-header-links">
+      <a href="/admin/queue">← Back to queue</a>
+      {% if plaque.approved %}
+      <a href="/plaque/{{ plaque.slug }}" target="_blank">View live ↗</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if errors %}
+  <div class="errors">
+    {% for e in errors %}⚠ {{ e }}<br>{% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="POST" enctype="multipart/form-data">
+
+    <div class="form-section">
+      <h2>📝 Details</h2>
+
+      <div class="form-group">
+        <label for="title">Title *</label>
+        <input type="text" id="title" name="title" value="{{ plaque.title }}" required>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Plaque Text</label>
+        <textarea id="description" name="description">{{ plaque.description or '' }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="location">Location</label>
+        <input type="text" id="location" name="location" value="{{ plaque.location or '' }}" placeholder="e.g. Boston, MA, USA">
+      </div>
+
+      <div class="form-group">
+        <label for="submitted_by">Submitted By</label>
+        <input type="text" id="submitted_by" name="submitted_by" value="{{ plaque.submitted_by or '' }}">
+      </div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="approved" name="approved" {% if plaque.approved %}checked{% endif %}>
+        <label for="approved">Approved (visible on map and homepage)</label>
+      </div>
+    </div>
+
+    <div class="form-section">
+      <h2>📸 Image</h2>
+      <div class="current-img-wrap">
+        <img class="current-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}">
+        <div class="current-img-info">
+          Current image<br>
+          {% if plaque.thumb_file %}Thumbnail: ✓{% else %}Thumbnail: not generated{% endif %}<br>
+          <small>Upload a new image below to replace it.</small>
+        </div>
+      </div>
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="newImage" name="image" accept="image/*">
+        <div class="dz-text">Drop new image here or <strong>click to browse</strong><br><small>Leave empty to keep current · JPEG, PNG, WebP · max 16 MB</small></div>
+      </div>
+      <img id="newImgPreview" alt="New image preview">
+    </div>
+
+    <div class="form-section">
+      <h2>📍 Location</h2>
+      <div id="coordPicker"></div>
+      <div class="coord-row">
+        <div class="form-group" style="margin:0">
+          <label for="latitude">Latitude</label>
+          <input type="text" id="latitude" name="latitude" value="{{ plaque.latitude }}">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label for="longitude">Longitude</label>
+          <input type="text" id="longitude" name="longitude" value="{{ plaque.longitude }}">
+        </div>
+      </div>
+      <p class="coord-hint">Click the map to reposition, or edit coordinates directly.</p>
+    </div>
+
+    <div class="btn-row">
+      <button type="submit" class="btn-save">Save Changes</button>
+      <a href="/admin/queue" class="btn-cancel">Cancel</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Map picker ────────────────────────────────────────────────────────────────
+var initLat = {{ plaque.latitude }};
+var initLng = {{ plaque.longitude }};
+
+var pickerMap = L.map('coordPicker').setView([initLat, initLng], 10);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(pickerMap);
+
+var marker = L.marker([initLat, initLng], { draggable: true }).addTo(pickerMap);
+
+function setCoords(lat, lng) {
+  document.getElementById('latitude').value  = lat.toFixed(6);
+  document.getElementById('longitude').value = lng.toFixed(6);
+}
+
+marker.on('dragend', function() {
+  var ll = marker.getLatLng();
+  setCoords(ll.lat, ll.lng);
+});
+
+pickerMap.on('click', function(e) {
+  marker.setLatLng(e.latlng);
+  setCoords(e.latlng.lat, e.latlng.lng);
+});
+
+['latitude', 'longitude'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', function() {
+    var lat = parseFloat(document.getElementById('latitude').value);
+    var lng = parseFloat(document.getElementById('longitude').value);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      marker.setLatLng([lat, lng]);
+      pickerMap.setView([lat, lng]);
+    }
+  });
+});
+
+// ── Image preview ─────────────────────────────────────────────────────────────
+var dz      = document.getElementById('dropZone');
+var fileIn  = document.getElementById('newImage');
+var preview = document.getElementById('newImgPreview');
+
+dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', function() { dz.classList.remove('drag-over'); });
+dz.addEventListener('drop', function(e) {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) showPreview(e.dataTransfer.files[0]);
+});
+fileIn.addEventListener('change', function() { if (fileIn.files[0]) showPreview(fileIn.files[0]); });
+
+function showPreview(file) {
+  var reader = new FileReader();
+  reader.onload = function(e) { preview.src = e.target.result; preview.style.display = 'block'; };
+  reader.readAsDataURL(file);
+}
+</script>
+{% endblock %}

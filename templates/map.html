@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block body_class %}page-map{% endblock %}
+{% block title %}Big Map — PlaqueWorld{% endblock %}
+
+{% block extra_head %}
+{# Preconnect to CDNs so the TCP+TLS handshakes happen in parallel #}
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
+<link rel="preconnect" href="https://a.tile.openstreetmap.org" crossorigin>
+
+{# Leaflet CSS — non-render-blocking: loads async, applied before paint via onload trick #}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+      media="print" onload="this.media='all'">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+      media="print" onload="this.media='all'">
+<noscript>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+</noscript>
+{% endblock %}
+
+{% block content %}
+<div style="position:relative;height:100%;">
+  <div id="map"></div>
+
+  <div class="map-search-bar">
+    <input type="text" id="mapSearch" placeholder="Search plaques…" autocomplete="off">
+    <button id="mapSearchBtn">🔍</button>
+  </div>
+  <div class="map-search-results" id="mapSearchResults"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# defer: scripts parse after HTML, execute in order, don't block rendering #}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
+<script defer>
+// Runs after both deferred scripts above have executed
+document.addEventListener("DOMContentLoaded", function () {
+  function esc(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // ── Map ─────────────────────────────────────────────────────────────────────
+  var map = L.map("map", { preferCanvas: true }).setView([20, 10], 2);
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    // Request tiles at native DPR but cap at 2× to save bandwidth
+    detectRetina: true,
+  }).addTo(map);
+
+  // ── Cluster group ────────────────────────────────────────────────────────────
+  var clusters = L.markerClusterGroup({
+    chunkedLoading: true,
+    showCoverageOnHover: false,
+    // Spiderfy only at max zoom to avoid layout thrash
+    spiderfyOnMaxZoom: true,
+    maxClusterRadius: 40,
+  });
+
+  // ── Load lean GeoJSON (no image URLs) ────────────────────────────────────────
+  fetch("/api/plaques/geo")
+    .then(function (r) { return r.json(); })
+    .then(function (gj) {
+      gj.features.forEach(function (f) {
+        var p   = f.properties;
+        var lat = f.geometry.coordinates[1];
+        var lng = f.geometry.coordinates[0];
+
+        var marker = L.marker([lat, lng]);
+
+        // Fetch image for this plaque when popup first opens
+        var imgLoaded = false;
+        marker.bindPopup(
+          '<div class="popup-body" style="min-width:220px">' +
+          '<img class="map-popup-img" style="width:100%;height:140px;object-fit:cover;display:block" alt="">' +
+          '<p class="popup-title">' + esc(p.title) + "</p>" +
+          (p.location ? '<p class="popup-loc">📍 ' + esc(p.location) + "</p>" : "") +
+          '<a class="popup-link" href="/plaque/' + esc(p.slug) + '">Read full plaque →</a>' +
+          "</div>",
+          { maxWidth: 260, sanitizeHtml: false }
+        );
+        marker.on("popupopen", function () {
+          if (imgLoaded) return;
+          imgLoaded = true;
+          var popup = marker.getPopup();
+          fetch("/api/plaques/" + p.id)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var el = popup.getElement();
+              if (!el) return;
+              el.querySelector(".map-popup-img").src = data.thumb_url || data.image_url;
+            });
+        });
+
+        clusters.addLayer(marker);
+      });
+      map.addLayer(clusters);
+    });
+
+  // ── Search ───────────────────────────────────────────────────────────────────
+  var searchInput   = document.getElementById("mapSearch");
+  var searchResults = document.getElementById("mapSearchResults");
+  var debounce;
+
+  searchInput.addEventListener("input", function () {
+    var q = searchInput.value.trim();
+    clearTimeout(debounce);
+    if (!q) { searchResults.style.display = "none"; return; }
+    debounce = setTimeout(function () { runSearch(q); }, 300);
+  });
+
+  document.getElementById("mapSearchBtn").addEventListener("click", function () {
+    var q = searchInput.value.trim();
+    if (q) runSearch(q);
+  });
+
+  function runSearch(q) {
+    fetch("/api/search?q=" + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.length) {
+          searchResults.innerHTML =
+            '<div class="gsr-empty">No results for "' + esc(q) + '"</div>';
+        } else {
+          searchResults.innerHTML = data
+            .slice(0, 10)
+            .map(function (p) {
+              return (
+                '<div class="gsr-item" data-lat="' + p.latitude + '" data-lng="' + p.longitude + '">' +
+                '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy" alt="">' +
+                '<div class="gsr-info"><strong>' + esc(p.title) + "</strong>" +
+                (p.location ? "<span>📍 " + esc(p.location) + "</span>" : "") +
+                "</div></div>"
+              );
+            })
+            .join("");
+          searchResults.querySelectorAll(".gsr-item").forEach(function (el) {
+            el.addEventListener("click", function () {
+              map.setView([+el.dataset.lat, +el.dataset.lng], 8);
+              searchResults.style.display = "none";
+              searchInput.value = "";
+            });
+          });
+        }
+        searchResults.style.display = "block";
+      });
+  }
+
+  document.addEventListener("click", function (e) {
+    if (
+      !e.target.closest(".map-search-bar") &&
+      !e.target.closest(".map-search-results")
+    )
+      searchResults.style.display = "none";
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ plaque.title }} — PlaqueWorld{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+{% endblock %}
+
+{% block content %}
+<div class="detail-page">
+  <div class="breadcrumb">
+    <a href="/">Home</a> › <a href="/map">Map</a> › {{ plaque.title }}
+  </div>
+
+  <div class="detail-hero">
+    <div>
+      <img class="detail-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}"
+           id="plaqueImg" onclick="openLightbox()">
+
+<!-- Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <img id="lightbox-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}"
+       onclick="event.stopPropagation()">
+</div>
+    </div>
+    <div class="detail-info">
+      <h1>{{ plaque.title }}</h1>
+      {% if plaque.location %}
+      <p class="detail-location"><span>📍</span> {{ plaque.location }}</p>
+      {% endif %}
+      {% if plaque.description %}
+      <div class="plaque-text-box">{{ plaque.description }}</div>
+      {% endif %}
+      <div class="detail-meta">
+        {% if plaque.submitted_by %}
+        <span>👤 Submitted by {{ plaque.submitted_by }}</span>
+        {% endif %}
+        <span>📅 {{ plaque.created_at[:10] }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="miniMap" class="mini-map"></div>
+
+  <a href="/map" class="back-link">← View all plaques on map</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const lat = {{ plaque.latitude }};
+const lng = {{ plaque.longitude }};
+const m = L.map('miniMap', {zoomControl:true, scrollWheelZoom:false}).setView([lat,lng], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(m);
+
+const icon = L.divIcon({
+  className:'',
+  html:`<div style="width:26px;height:26px;border-radius:50% 50% 50% 0;background:#b07d2e;border:3px solid #fff;transform:rotate(-45deg);box-shadow:0 3px 8px rgba(0,0,0,0.4);"></div>`,
+  iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-28]
+});
+L.marker([lat,lng],{icon}).addTo(m)
+ .bindPopup('<strong>{{ plaque.title }}</strong>').openPopup();
+</script>
+<script>
+function openLightbox() {
+  document.getElementById('lightbox').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+{% endblock %}

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Approval Queue — PlaqueWorld Admin{% endblock %}
+
+{% block extra_head %}
+{% endblock %}
+
+{% block content %}
+<div class="queue-page">
+  <div class="queue-header">
+    <div>
+      <h1>Approval Queue</h1>
+      <p class="meta">{{ pending|length }} plaque{{ 's' if pending|length != 1 }} awaiting review</p>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center">
+      <a href="/" class="logout-link">← Back to site</a>
+      <a href="/admin/plaques" class="logout-link">All plaques</a>
+      <a href="/admin/logout" class="logout-link">Sign out</a>
+    </div>
+  </div>
+
+  {% if not pending %}
+  <div class="empty-state">
+    <div class="icon">✅</div>
+    <p>Queue is empty — nothing to review.</p>
+  </div>
+  {% else %}
+  <div class="queue-grid" id="queueGrid">
+    {% for p in pending %}
+    <div class="queue-card" id="card-{{ p.id }}">
+      <div class="qc-img-wrap">
+        <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
+        {% if p.thumb_file %}
+        <span class="qc-thumb-badge">THUMB</span>
+        {% endif %}
+      </div>
+      <div class="qc-body">
+        <p class="qc-title">{{ p.title }}</p>
+        <div class="qc-meta">
+          {% if p.location %}📍 {{ p.location }}<br>{% endif %}
+          🌐 {{ "%.4f"|format(p.latitude) }}, {{ "%.4f"|format(p.longitude) }}<br>
+          👤 {{ p.submitted_by or 'anonymous' }}<br>
+          🕐 {{ p.created_at[:16].replace('T', ' ') }}
+        </div>
+        {% if p.description %}
+        <p class="qc-desc">{{ p.description }}</p>
+        {% endif %}
+      </div>
+      <div class="qc-actions" id="actions-{{ p.id }}">
+        <button class="qc-btn qc-btn-approve" onclick="decide({{ p.id }}, 'approve')">
+          ✅ Approve
+        </button>
+        <a class="qc-btn qc-btn-edit" href="/admin/edit/{{ p.id }}">
+          ✏️ Edit
+        </a>
+        <button class="qc-btn qc-btn-reject" onclick="decide({{ p.id }}, 'reject')">
+          🗑 Reject
+        </button>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function decide(id, action) {
+  var actions = document.getElementById('actions-' + id);
+  actions.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+
+  var res = await fetch('/admin/' + action + '/' + id, { method: 'POST' });
+  var data = await res.json();
+
+  var done = document.createElement('div');
+  done.className = 'qc-done ' + (action === 'approve' ? 'approved' : 'rejected');
+  done.textContent = action === 'approve' ? '✅ Approved' : '🗑 Rejected';
+  actions.replaceWith(done);
+
+  // Fade out the card after a moment
+  setTimeout(function() {
+    var card = document.getElementById('card-' + id);
+    card.style.transition = 'opacity .4s, transform .4s';
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.97)';
+    setTimeout(function() {
+      card.remove();
+      // Update the count in the header
+      var remaining = document.querySelectorAll('.queue-card').length;
+      document.querySelector('.meta').textContent =
+        remaining + ' plaque' + (remaining !== 1 ? 's' : '') + ' awaiting review';
+      if (remaining === 0) {
+        document.getElementById('queueGrid').outerHTML =
+          '<div class="empty-state"><div class="icon">✅</div><p>Queue is empty — nothing to review.</p></div>';
+      }
+    }, 450);
+  }, 800);
+}
+</script>
+{% endblock %}

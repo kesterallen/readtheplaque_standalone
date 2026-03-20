@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}PlaqueWorld — Explore Historical Plaques{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+{% endblock %}
+
+{% block content %}
+
+<!-- Featured plaque -->
+{% if featured %}
+<section class="featured">
+  <p class="featured-label">Featured Plaque:</p>
+  <a href="/plaque/{{ featured.slug }}" class="featured-card">
+    <img class="featured-img" src="{{ featured.image_url }}" alt="{{ featured.title }}">
+    <div class="featured-body">
+      <h2>{{ featured.title }}</h2>
+      {% if featured.description %}
+      <p class="featured-desc">{{ featured.description }}</p>
+      {% endif %}
+    </div>
+  </a>
+</section>
+{% endif %}
+
+<!-- Search -->
+<section class="search-section">
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Search {{ total }} plaques…" autocomplete="off">
+    <button id="searchClear" class="search-clear" aria-label="Clear" style="display:none">✕</button>
+  </div>
+  <div id="searchResults" class="search-results-overlay" style="display:none"></div>
+</section>
+
+<!-- Mini map -->
+<section class="map-section">
+  <div class="map-section-header">
+    <h2>{{ total }} plaques worldwide</h2>
+    <a href="/map">Explore the Big Map →</a>
+  </div>
+  <div id="home-map"></div>
+</section>
+
+<!-- Recent plaques -->
+<section class="recent-section">
+  <div class="recent-header">
+    <h2>The most recent plaques:</h2>
+    <a href="/submit">+ Submit one</a>
+  </div>
+  <div class="plaque-grid">
+    {% for p in recent %}
+    <a href="/plaque/{{ p.slug }}" class="plaque-card">
+      <div class="card-img-wrap">
+        <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
+      </div>
+      <p class="card-title">{{ p.title }}</p>
+      {% if p.location %}<p class="card-location">{{ p.location }}</p>{% endif %}
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Paginator -->
+{% if total_pages > 1 %}
+<nav class="paginator" aria-label="Pages">
+  {# Prev #}
+  {% if page > 1 %}
+    <a href="{{ url_for('index', page=page-1) }}" aria-label="Previous">‹</a>
+  {% else %}
+    <span class="disabled">‹</span>
+  {% endif %}
+
+  {# Page numbers with ellipsis #}
+  {% for p in range(1, total_pages + 1) %}
+    {% if p == page %}
+      <span class="current">{{ p }}</span>
+    {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+      <a href="{{ url_for('index', page=p) }}">{{ p }}</a>
+    {% elif p == page - 3 or p == page + 3 %}
+      <span class="ellipsis">…</span>
+    {% endif %}
+  {% endfor %}
+
+  {# Next #}
+  {% if page < total_pages %}
+    <a href="{{ url_for('index', page=page+1) }}" aria-label="Next">›</a>
+  {% else %}
+    <span class="disabled">›</span>
+  {% endif %}
+</nav>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const input  = document.getElementById('searchInput');
+const clear  = document.getElementById('searchClear');
+const overlay= document.getElementById('searchResults');
+let timer;
+
+input.addEventListener('input', () => {
+  const q = input.value.trim();
+  clear.style.display = q ? 'block' : 'none';
+  clearTimeout(timer);
+  if (!q) { overlay.style.display = 'none'; return; }
+  timer = setTimeout(() => doSearch(q), 300);
+});
+clear.addEventListener('click', () => {
+  input.value = ''; clear.style.display = 'none'; overlay.style.display = 'none';
+});
+
+async function doSearch(q) {
+  const data = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+  if (!data.length) {
+    overlay.innerHTML = `<div class="sr-empty">No plaques found for "<em>${esc(q)}</em>"</div>`;
+  } else {
+    overlay.innerHTML = data.map(p => `
+      <a href="/plaque/${p.slug}" class="sr-item">
+        <img src="${p.thumb_url || p.image_url}" alt="${esc(p.title)}">
+        <div class="sr-info">
+          <strong>${esc(p.title)}</strong>
+          ${p.location ? `<span>📍 ${esc(p.location)}</span>` : ''}
+        </div>
+      </a>`).join('');
+  }
+  overlay.style.display = 'block';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-section')) overlay.style.display = 'none';
+});
+</script>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+var homeMap = L.map('home-map', { zoomControl: true, attributionControl: false })
+  .setView([20, 10], 2);
+
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(homeMap);
+
+var clusters = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 36 });
+
+// Use the plaques already rendered on the page instead of a separate API call
+var pagePlaques = {{ (([featured] if featured else []) + recent) | tojson }};
+
+pagePlaques.forEach(function(p) {
+  if (!p || p.latitude == null || p.longitude == null) return;
+  L.marker([p.latitude, p.longitude])
+    .bindPopup(
+      '<div class="hp-popup">' +
+      '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
+      '<div class="hp-popup-body">' +
+      '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
+      '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">Read plaque →</a>' +
+      '</div></div>',
+      { maxWidth: 220, minWidth: 200 }
+    )
+    .addTo(clusters);
+});
+homeMap.addLayer(clusters);
+</script>
+{% endblock %}

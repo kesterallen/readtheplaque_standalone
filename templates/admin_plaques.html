@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}All Plaques — PlaqueWorld Admin{% endblock %}
+
+{% block extra_head %}
+{% endblock %}
+
+{% block content %}
+<div class="ap-page">
+  <div class="ap-header">
+    <div>
+      <h1>All Plaques</h1>
+      <p style="font-size:13px;color:var(--text-muted);margin:4px 0 0">{{ total }} total</p>
+    </div>
+    <div class="ap-header-links">
+      <a href="/admin/queue">Approval queue</a>
+      <a href="/">← Back to site</a>
+      <a href="/admin/logout">Sign out</a>
+    </div>
+  </div>
+
+  <table class="ap-table">
+    <thead>
+      <tr>
+        <th></th>
+        <th>Title</th>
+        <th>Location</th>
+        <th>Status</th>
+        <th>Submitted by</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in plaques %}
+      <tr>
+        <td><img class="ap-thumb" src="{{ p.thumb_url }}" alt="{{ p.title }}"></td>
+        <td>
+          <div class="ap-title">
+            {% if p.approved %}
+            <a href="/plaque/{{ p.slug }}" target="_blank">{{ p.title }}</a>
+            {% else %}
+            {{ p.title }}
+            {% endif %}
+          </div>
+        </td>
+        <td class="ap-loc">{{ p.location or '—' }}</td>
+        <td>
+          {% if p.approved %}
+          <span class="badge badge-approved">Approved</span>
+          {% else %}
+          <span class="badge badge-pending">Pending</span>
+          {% endif %}
+        </td>
+        <td style="font-size:13px;color:var(--text-muted)">{{ p.submitted_by or '—' }}</td>
+        <td style="font-size:12px;color:var(--text-muted);white-space:nowrap">{{ p.created_at[:10] }}</td>
+        <td><a class="btn-edit" href="/admin/edit/{{ p.id }}">✏️ Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+  <nav class="paginator">
+    {% if page > 1 %}<a href="?page={{ page-1 }}">‹</a>{% else %}<span class="disabled">‹</span>{% endif %}
+    {% for p in range(1, total_pages + 1) %}
+      {% if p == page %}<span class="current">{{ p }}</span>
+      {% elif p == 1 or p == total_pages or (p >= page-2 and p <= page+2) %}<a href="?page={{ p }}">{{ p }}</a>
+      {% elif p == page-3 or p == page+3 %}<span class="ellipsis">…</span>
+      {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}<a href="?page={{ page+1 }}">›</a>{% else %}<span class="disabled">›</span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

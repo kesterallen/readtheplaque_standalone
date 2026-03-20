@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Submit a Plaque — PlaqueWorld{% endblock %}
+
+{% block extra_head %}
+{% endblock %}
+
+{% block content %}
+<div class="submit-page">
+  <h1>Submit a Plaque</h1>
+  <p class="sub">Found an interesting historical marker? Add it to the map and help document history for everyone.</p>
+
+  <div id="alertBox" style="display:none"></div>
+
+  <div class="form-section">
+    <h2>📸 Photo</h2>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="imageFile" accept="image/*">
+      <div class="dz-icon">🏛️</div>
+      <div class="dz-text">Drop image here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB</small></div>
+    </div>
+    <div id="imgPreviewWrap"><img id="imgPreview" alt="Preview"></div>
+    <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
+  </div>
+
+  <div class="form-section">
+    <h2>📝 Details</h2>
+    <div class="form-group">
+      <label for="title">Plaque Title *</label>
+      <input type="text" id="title" placeholder="e.g. Site of the First Town Hall">
+    </div>
+    <div class="form-group">
+      <label for="description">Plaque Text</label>
+      <textarea id="description" placeholder="Transcribe the text from the plaque…"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="location">Location (City, Country)</label>
+      <input type="text" id="location" placeholder="e.g. Boston, MA, USA">
+    </div>
+    <div class="form-group">
+      <label for="submittedBy">Your Name (optional)</label>
+      <input type="text" id="submittedBy" placeholder="Anonymous">
+    </div>
+  </div>
+
+  <div class="form-section">
+    <h2>📍 Pin Location</h2>
+    <p class="coord-hint">Coordinates are filled automatically if your photo has GPS data. Otherwise click the map or type them in.</p>
+    <div id="locationPicker"></div>
+    <div class="coord-row" style="margin-top:12px;">
+      <div class="form-group" style="margin:0">
+        <label for="latitude">Latitude</label>
+        <input type="text" id="latitude" placeholder="e.g. 40.7128">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label for="longitude">Longitude</label>
+        <input type="text" id="longitude" placeholder="e.g. -74.0060">
+      </div>
+    </div>
+    <p class="coord-hint"><a href="#" id="geolocateBtn" style="color:var(--amber);">Use my current location</a></p>
+  </div>
+
+  <button class="btn-submit" id="submitBtn">Submit Plaque →</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ── Drop zone + EXIF read (via exifr) ───────────────────────────────────────
+const dz         = document.getElementById('dropZone');
+const fileInput  = document.getElementById('imageFile');
+const preview    = document.getElementById('imgPreview');
+const previewWrap= document.getElementById('imgPreviewWrap');
+const gpsBadge   = document.getElementById('gpsBadge');
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  // Show image preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    preview.src = e.target.result;
+    previewWrap.style.display = 'block';
+  };
+  reader.readAsDataURL(file);
+
+  // Extract GPS from EXIF via exifr
+  exifr.gps(file).then(coords => {
+    if (coords && coords.latitude != null && coords.longitude != null) {
+      setCoords(coords.latitude, coords.longitude);
+      gpsBadge.style.display = 'block';
+    } else {
+      gpsBadge.style.display = 'none';
+    }
+  }).catch(() => { gpsBadge.style.display = 'none'; });
+}
+
+// ── Picker map ────────────────────────────────────────────────────────────────
+const pickerMap = L.map('locationPicker').setView([20, 0], 1);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(pickerMap);
+
+let pickerMarker;
+pickerMap.on('click', e => setCoords(e.latlng.lat, e.latlng.lng));
+
+function setCoords(lat, lng) {
+  document.getElementById('latitude').value  = lat.toFixed(6);
+  document.getElementById('longitude').value = lng.toFixed(6);
+  if (pickerMarker) pickerMap.removeLayer(pickerMarker);
+  pickerMarker = L.marker([lat, lng]).addTo(pickerMap);
+  pickerMap.setView([lat, lng], Math.max(pickerMap.getZoom(), 12));
+}
+
+// Sync manual coord inputs → map
+['latitude', 'longitude'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    const lat = parseFloat(document.getElementById('latitude').value);
+    const lng = parseFloat(document.getElementById('longitude').value);
+    if (!isNaN(lat) && !isNaN(lng)) setCoords(lat, lng);
+  });
+});
+
+document.getElementById('geolocateBtn').addEventListener('click', e => {
+  e.preventDefault();
+  navigator.geolocation.getCurrentPosition(
+    pos => setCoords(pos.coords.latitude, pos.coords.longitude),
+    ()  => alert('Could not determine your location.')
+  );
+});
+
+// ── Submit ────────────────────────────────────────────────────────────────────
+document.getElementById('submitBtn').addEventListener('click', async () => {
+  const btn      = document.getElementById('submitBtn');
+  const alertBox = document.getElementById('alertBox');
+  alertBox.style.display = 'none';
+
+  const fd = new FormData();
+  if (fileInput.files[0]) fd.append('image', fileInput.files[0]);
+  fd.append('title',        document.getElementById('title').value.trim());
+  fd.append('description',  document.getElementById('description').value.trim());
+  fd.append('location',     document.getElementById('location').value.trim());
+  fd.append('submitted_by', document.getElementById('submittedBy').value.trim());
+  fd.append('latitude',     document.getElementById('latitude').value.trim());
+  fd.append('longitude',    document.getElementById('longitude').value.trim());
+
+  btn.disabled    = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const res  = await fetch('/submit', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.ok) {
+      alertBox.className = 'alert alert-success';
+      alertBox.innerHTML = '🎉 Thanks! Your plaque has been submitted and is awaiting approval. It will appear on the map once reviewed.';
+      alertBox.style.display = 'block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      showErrors(data.errors || ['Submission failed.']);
+    }
+  } catch (e) {
+    showErrors(['Network error — please try again.']);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = 'Submit Plaque →';
+  }
+});
+
+function showErrors(errs) {
+  const alertBox = document.getElementById('alertBox');
+  alertBox.className   = 'alert alert-error';
+  alertBox.innerHTML   = '⚠ ' + errs.join('<br>');
+  alertBox.style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+{% endblock %}
