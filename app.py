@@ -792,6 +792,8 @@ def import_from_rtp(num_plaques):
     })
 
 
+# Called at import time so Gunicorn/uWSGI/etc. initialise the DB on startup
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True, host="0.0.0.0", port=5000)
