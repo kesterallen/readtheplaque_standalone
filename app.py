@@ -96,43 +96,49 @@ def make_thumbnail_from_bytes(img_bytes, thumb_filename):
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")   # better concurrency
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
 def init_db():
-    with get_db() as db:
-        db.executescript("""
-        CREATE TABLE IF NOT EXISTS plaques (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            slug         TEXT    UNIQUE NOT NULL,
-            title        TEXT    NOT NULL,
-            description  TEXT,
-            location     TEXT,
-            latitude     REAL    NOT NULL,
-            longitude    REAL    NOT NULL,
-            image_file   TEXT    NOT NULL,
-            thumb_file   TEXT,
-            submitted_by TEXT,
-            approved     INTEGER NOT NULL DEFAULT 0,
-            created_at   TEXT    NOT NULL
-        );
+    db = get_db()
+    # DDL — executescript issues an implicit COMMIT before running, safe for schema work
+    db.executescript("""
+    CREATE TABLE IF NOT EXISTS plaques (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug         TEXT    UNIQUE NOT NULL,
+        title        TEXT    NOT NULL,
+        description  TEXT,
+        location     TEXT,
+        latitude     REAL    NOT NULL,
+        longitude    REAL    NOT NULL,
+        image_file   TEXT    NOT NULL,
+        thumb_file   TEXT,
+        submitted_by TEXT,
+        approved     INTEGER NOT NULL DEFAULT 0,
+        is_featured  INTEGER NOT NULL DEFAULT 0,
+        created_at   TEXT    NOT NULL
+    );
 
-        CREATE INDEX IF NOT EXISTS idx_plaques_slug     ON plaques(slug);
-        CREATE INDEX IF NOT EXISTS idx_plaques_location ON plaques(latitude, longitude);
-        CREATE INDEX IF NOT EXISTS idx_plaques_approved ON plaques(approved);
-        """)
+    CREATE INDEX IF NOT EXISTS idx_plaques_slug     ON plaques(slug);
+    CREATE INDEX IF NOT EXISTS idx_plaques_location ON plaques(latitude, longitude);
+    CREATE INDEX IF NOT EXISTS idx_plaques_approved ON plaques(approved);
+    """)
 
-        # Migrate: add missing columns to existing databases
-        cols = {row[1] for row in db.execute("PRAGMA table_info(plaques)")}
-        if "thumb_file" not in cols:
-            db.execute("ALTER TABLE plaques ADD COLUMN thumb_file TEXT")
-        if "approved" not in cols:
-            db.execute("ALTER TABLE plaques ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
-        db.commit()
+    # Migrations — ALTER TABLE is DDL, each auto-commits
+    cols = {row[1] for row in db.execute("PRAGMA table_info(plaques)")}
+    if "thumb_file" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN thumb_file TEXT")
+    if "approved" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
+    if "is_featured" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
 
-        # Seed with sample data if empty (3 pages × 12 = 36 plaques)
-        count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
-        if count == 0:
+    # Seed with sample data if empty — wrap in transaction so it's all-or-nothing
+    count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
+    if count == 0:
+        with db:
             seed_data = [
                 # ── Page 1 ─────────────────────────────────────────────────────
                 ("alamo-san-antonio", "The Alamo",
@@ -254,7 +260,7 @@ def init_db():
                 " VALUES (?,?,?,?,?,?,?,?,1,?)",
                 [(*row, now) for row in seed_data]
             )
-            db.commit()
+    db.close()
 
 
 def plaque_to_dict(row):
@@ -288,21 +294,27 @@ def index(page=1):
 
     with get_db() as db:
         total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
-        # On page 1 fetch 13 so first row becomes the featured plaque
-        if page == 1:
-            rows = db.execute(
-                "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT 13"
-            ).fetchall()
-        else:
-            # Pages 2+ have no featured plaque; offset accounts for the extra row on page 1
-            rows = db.execute(
-                "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (per_page, offset + 1)   # +1 because page 1 consumed featured + 12
-            ).fetchall()
 
-    dicts    = [plaque_to_dict(r) for r in rows]
-    featured = dicts[0] if (page == 1 and dicts) else None
-    recent   = dicts[1:] if (page == 1 and len(dicts) > 1) else dicts
+        # Featured plaque: explicit is_featured flag, else fall back to most recent
+        featured_row = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 AND is_featured=1 LIMIT 1"
+        ).fetchone()
+        if not featured_row:
+            featured_row = db.execute(
+                "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+
+        featured_id = featured_row["id"] if featured_row else None
+
+        # Recent grid: exclude the featured plaque so it doesn't appear twice
+        rows = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 AND id != ? "
+            "ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (featured_id or -1, per_page, offset),
+        ).fetchall()
+
+    featured = plaque_to_dict(featured_row) if (page == 1 and featured_row) else None
+    recent   = [plaque_to_dict(r) for r in rows]
 
     total_pages = max(1, -(-total // per_page))   # ceiling division
     return render_template("index.html",
@@ -363,16 +375,15 @@ def submit():
     slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     with get_db() as db:
-        db.execute(
-            "INSERT INTO plaques "
-            "(slug,title,description,location,latitude,longitude,"
-            "image_file,thumb_file,submitted_by,approved,created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
-            (slug, title, description, location, lat, lng,
-             filename, thumb_filename if thumb_ok else None,
-             submitted_by, datetime.utcnow().isoformat())
-        )
-        db.commit()
+            db.execute(
+                "INSERT INTO plaques "
+                "(slug,title,description,location,latitude,longitude,"
+                "image_file,thumb_file,submitted_by,approved,created_at)"
+                " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
+                (slug, title, description, location, lat, lng,
+                 filename, thumb_filename if thumb_ok else None,
+                 submitted_by, datetime.utcnow().isoformat())
+            )
 
     return jsonify({"ok": True, "slug": slug, "pending": True})
 
@@ -441,8 +452,7 @@ def admin_approve(plaque_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
-        db.execute("UPDATE plaques SET approved=1 WHERE id=?", (plaque_id,))
-        db.commit()
+            db.execute("UPDATE plaques SET approved=1 WHERE id=?", (plaque_id,))
     return jsonify({"ok": True})
 
 
@@ -461,7 +471,6 @@ def admin_reject(plaque_id):
                     except OSError:
                         pass
             db.execute("DELETE FROM plaques WHERE id=?", (plaque_id,))
-            db.commit()
     return jsonify({"ok": True})
 
 
@@ -527,16 +536,38 @@ def admin_edit(plaque_id):
     if errors:
         return render_template("admin_edit.html", plaque=plaque_to_dict(row), errors=errors)
 
+    set_featured = bool(request.form.get("set_featured"))
+
     with get_db() as db:
-        db.execute(
-            "UPDATE plaques SET title=?, description=?, location=?, latitude=?, longitude=?,"
-            " submitted_by=?, approved=?, image_file=?, thumb_file=? WHERE id=?",
-            (title, description, location, lat, lng,
-             submitted_by, approved, new_img_file, new_thumb_file, plaque_id)
-        )
-        db.commit()
+            if set_featured:
+                db.execute("UPDATE plaques SET is_featured=0")
+            db.execute(
+                "UPDATE plaques SET title=?, description=?, location=?, latitude=?, longitude=?,"
+                " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=? WHERE id=?",
+                (title, description, location, lat, lng,
+                 submitted_by, approved, 1 if set_featured else 0,
+                 new_img_file, new_thumb_file, plaque_id)
+            )
 
     return redirect(url_for("admin_queue"))
+
+
+@app.route("/admin/feature/<int:plaque_id>", methods=["POST"])
+def admin_feature(plaque_id):
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+    with get_db() as db:
+        # Ensure the plaque exists and is approved
+        row = db.execute(
+            "SELECT id FROM plaques WHERE id=? AND approved=1", (plaque_id,)
+        ).fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "Plaque not found or not approved"}), 404
+        # Clear any existing featured plaque, then set the new one — atomic
+        with db:
+            db.execute("UPDATE plaques SET is_featured=0")
+            db.execute("UPDATE plaques SET is_featured=1 WHERE id=?", (plaque_id,))
+    return jsonify({"ok": True, "featured_id": plaque_id})
 
 
 # ── API ────────────────────────────────────────────────────────────────────────
@@ -701,16 +732,15 @@ def _rtp_import_plaque(title_url):
 
     try:
         with get_db() as db:
-            db.execute(
-                "INSERT OR IGNORE INTO plaques "
-                "(slug,title,description,location,latitude,longitude,"
-                "image_file,thumb_file,submitted_by,approved,created_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,1,?)",
-                (local_slug, title, "", "", lat, lng,
-                 filename, thumb_filename if thumb_ok else None,
-                 "readtheplaque.com", datetime.utcnow().isoformat())
-            )
-            db.commit()
+                db.execute(
+                    "INSERT OR IGNORE INTO plaques "
+                    "(slug,title,description,location,latitude,longitude,"
+                    "image_file,thumb_file,submitted_by,approved,created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,1,?)",
+                    (local_slug, title, "", "", lat, lng,
+                     filename, thumb_filename if thumb_ok else None,
+                     "readtheplaque.com", datetime.utcnow().isoformat())
+                )
     except Exception as e:
         return {"title_url": title_url, "ok": False, "error": f"db insert failed: {e}"}
 

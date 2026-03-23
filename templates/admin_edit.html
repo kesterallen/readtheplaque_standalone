@@ -53,6 +53,11 @@
         <input type="checkbox" id="approved" name="approved" {% if plaque.approved %}checked{% endif %}>
         <label for="approved">Approved (visible on map and homepage)</label>
       </div>
+
+      <div class="toggle-row" style="margin-top:12px">
+        <input type="checkbox" id="set_featured" name="set_featured" {% if plaque.is_featured %}checked{% endif %}>
+        <label for="set_featured">Featured plaque <span style="font-size:12px;color:var(--text-muted)">(replaces current featured plaque on homepage)</span></label>
+      </div>
     </div>
 
     <div class="form-section">
