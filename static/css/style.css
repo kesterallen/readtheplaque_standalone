@@ -852,3 +852,12 @@ textarea { resize: vertical; min-height: 90px; }
 .tag-page-title { margin: 0; }
 .tag-page-count { font-size: 13px; color: var(--text-muted); }
 .tag-empty { color: var(--text-muted); font-size: 15px; }
+
+/* ── Rotate button ─────────────────────────────────────────────────────────── */
+.btn-rotate {
+  padding: 5px 12px; font-size: 13px; cursor: pointer;
+  background: var(--surface-2); border: 1.5px solid var(--border);
+  border-radius: 6px; color: var(--text); transition: border-color .15s;
+}
+.btn-rotate:hover { border-color: var(--amber); }
+.btn-rotate:disabled { opacity: .5; cursor: not-allowed; }

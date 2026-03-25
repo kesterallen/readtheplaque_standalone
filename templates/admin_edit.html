@@ -71,11 +71,13 @@
     <div class="form-section">
       <h2>📸 Image</h2>
       <div class="current-img-wrap">
-        <img class="current-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}">
+        <img class="current-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}" id="currentImg">
         <div class="current-img-info">
           Current image<br>
           {% if plaque.thumb_file %}Thumbnail: ✓{% else %}Thumbnail: not generated{% endif %}<br>
-          <small>Upload a new image below to replace it.</small>
+          <small>Upload a new image below to replace it.</small><br><br>
+          <button type="button" id="rotateBtn" class="btn-rotate">↻ Rotate 90°</button>
+          <span id="rotateStatus" style="font-size:12px;margin-left:8px;color:var(--text-muted)"></span>
         </div>
       </div>
       <div class="drop-zone" id="dropZone">
@@ -168,5 +170,38 @@ function showPreview(file) {
   reader.onload = function(e) { preview.src = e.target.result; preview.style.display = 'block'; };
   reader.readAsDataURL(file);
 }
+
+// ── Rotate ────────────────────────────────────────────────────────────────────
+document.getElementById('rotateBtn').addEventListener('click', function() {
+  var btn    = document.getElementById('rotateBtn');
+  var status = document.getElementById('rotateStatus');
+  btn.disabled = true;
+  btn.textContent = 'Rotating…';
+  status.textContent = '';
+
+  fetch('/admin/rotate/{{ plaque.id }}', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        // Bust the image cache by appending a timestamp
+        var img = document.getElementById('currentImg');
+        var src = img.src.split('?')[0];
+        img.src = src + '?t=' + Date.now();
+        status.textContent = '✓ Rotated';
+        status.style.color = '#1a7a43';
+      } else {
+        status.textContent = '✗ ' + (d.error || 'Failed');
+        status.style.color = '#c0392b';
+      }
+    })
+    .catch(function() {
+      status.textContent = '✗ Network error';
+      status.style.color = '#c0392b';
+    })
+    .finally(function() {
+      btn.disabled = false;
+      btn.textContent = '↻ Rotate 90°';
+    });
+});
 </script>
 {% endblock %}

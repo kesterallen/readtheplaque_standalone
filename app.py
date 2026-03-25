@@ -560,7 +560,11 @@ def admin_edit(plaque_id):
         abort(404)
 
     if request.method == "GET":
-        return render_template("admin_edit.html", plaque=plaque_to_dict(row))
+        with get_db() as db:
+            tags = get_tags_for_plaque(db, plaque_id)
+        plaque = plaque_to_dict(row)
+        plaque["tags"] = tags
+        return render_template("admin_edit.html", plaque=plaque)
 
     # POST — save edits
     errors = []
@@ -629,6 +633,37 @@ def admin_edit(plaque_id):
         set_tags_for_plaque(db, plaque_id, tag_names)
 
     return redirect(url_for("admin_queue"))
+
+
+@app.route("/admin/rotate/<int:plaque_id>", methods=["POST"])
+def admin_rotate(plaque_id):
+    """Rotate a plaque's image 90° clockwise. Regenerates the thumbnail."""
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+
+    with get_db() as db:
+        row = db.execute(
+            "SELECT image_file, thumb_file FROM plaques WHERE id=?", (plaque_id,)
+        ).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Plaque not found"}), 404
+
+    img_path = subdir_path(UPLOAD_DIR, row["image_file"])
+    if not os.path.exists(img_path):
+        return jsonify({"ok": False, "error": "Image file not found"}), 404
+
+    try:
+        with Image.open(img_path) as img:
+            rotated = img.rotate(-90, expand=True)  # -90 = 90° clockwise
+            rotated.save(img_path)
+
+        # Regenerate thumbnail
+        if row["thumb_file"]:
+            make_thumbnail(row["image_file"], row["thumb_file"])
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+    return jsonify({"ok": True})
 
 
 @app.route("/admin/feature/<int:plaque_id>", methods=["POST"])
