@@ -50,6 +50,13 @@
 
   <div id="miniMap" class="mini-map"></div>
 
+  <section class="nearby-section">
+    <h2 class="nearby-title">Nearby Plaques</h2>
+    <div class="nearby-grid" id="nearbyGrid">
+      <div class="nearby-loading">Loading…</div>
+    </div>
+  </section>
+
   <a href="/map" class="back-link">← View all plaques on map</a>
 </div>
 {% endblock %}
@@ -83,5 +90,35 @@ function closeLightbox() {
   document.body.style.overflow = '';
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+</script>
+<script>
+// ── Nearby plaques ────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+fetch('/api/nearby/{{ plaque.id }}')
+  .then(function(r) { return r.json(); })
+  .then(function(data) {
+    var grid = document.getElementById('nearbyGrid');
+    if (!data.length) {
+      grid.innerHTML = '<p class="nearby-empty">No nearby plaques found.</p>';
+      return;
+    }
+    grid.innerHTML = data.map(function(p) {
+      var dist = p.distance_km < 1
+        ? Math.round(p.distance_km * 1000) + ' m'
+        : p.distance_km.toFixed(1) + ' km';
+      return '<a href="/plaque/' + esc(p.slug) + '" class="nearby-card">'
+        + '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy" alt="">'
+        + '<div class="nearby-card-body">'
+        + '<p class="nearby-card-title">' + esc(p.title) + '</p>'
+        + '<p class="nearby-card-dist">📍 ' + dist + ' away</p>'
+        + '</div></a>';
+    }).join('');
+  })
+  .catch(function() {
+    document.getElementById('nearbyGrid').innerHTML =
+      '<p class="nearby-empty">Could not load nearby plaques.</p>';
+  });
 </script>
 {% endblock %}

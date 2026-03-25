@@ -1,3 +1,8 @@
+# TODO: approved/pending/deleted? not just binary?
+# TODO: nearby-plaques?
+# TODO: remove "location" field
+# TODO: double-check tags details (esp edit page)
+# TODO: move admin password and secret key to env vars
 """
 PlaqueWorld - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
@@ -6,6 +11,7 @@ Tier 3: SQLite database (plaques.db)
 """
 
 import io
+import math
 import os
 import re
 import uuid
@@ -34,7 +40,7 @@ THUMB_SIZE  = (400, 300)
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_MB      = 16
 
-# Change this in production!
+# TODO Change this in production!
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "plaqueadmin")
 
 app = Flask(__name__)
@@ -741,6 +747,53 @@ def api_search():
             (like, like, like)
         ).fetchall()
     return jsonify([plaque_to_dict(r) for r in rows])
+
+
+@app.route("/api/nearby/<int:plaque_id>")
+def api_nearby(plaque_id):
+    """Return the 10 nearest approved plaques to a given plaque, sorted by distance."""
+    with get_db() as db:
+        origin = db.execute(
+            "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
+            (plaque_id,),
+        ).fetchone()
+        if not origin:
+            abort(404)
+
+        # Rough bounding box (~200 km) to cut down candidates before haversine
+        lat, lng = origin["latitude"], origin["longitude"]
+        dlat = 1.8   # ~200 km in degrees latitude
+        dlng = dlat / max(math.cos(math.radians(lat)), 0.01)
+
+        candidates = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 AND id != ? "
+            "AND latitude  BETWEEN ? AND ? "
+            "AND longitude BETWEEN ? AND ?",
+            (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
+        ).fetchall()
+
+    def haversine(lat1, lng1, lat2, lng2):
+        R = 6371  # km
+        dlat = math.radians(lat2 - lat1)
+        dlng = math.radians(lng2 - lng1)
+        a = (math.sin(dlat / 2) ** 2
+             + math.cos(math.radians(lat1))
+             * math.cos(math.radians(lat2))
+             * math.sin(dlng / 2) ** 2)
+        return R * 2 * math.asin(math.sqrt(a))
+
+    ranked = sorted(
+        candidates,
+        key=lambda r: haversine(lat, lng, r["latitude"], r["longitude"]),
+    )[:10]
+
+    results = []
+    for r in ranked:
+        d = plaque_to_dict(r)
+        d["distance_km"] = round(haversine(lat, lng, r["latitude"], r["longitude"]), 2)
+        results.append(d)
+
+    return jsonify(results)
 
 
 @app.route("/api/plaques/<int:plaque_id>")

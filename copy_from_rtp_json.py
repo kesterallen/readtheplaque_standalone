@@ -5,6 +5,8 @@ import random
 import requests
 import urllib.request
 
+NUM_IMPORT = 10
+
 def download_tmp_file_unless_present(url, slug):
     filename = f"{slug}.jpg"
     if not Path(filename).is_file():
@@ -26,7 +28,7 @@ def get_rtp_info(slug):
 with open("rtp_plaques.geojson") as file:
     plaques = json.load(file)
 
-    for plaque in random.choices(plaques["features"], k=10):
+    for plaque in random.choices(plaques["features"], k=NUM_IMPORT):
         props = plaque["properties"]
 
         slug = props["title_page_url"].split("/")[-1]
