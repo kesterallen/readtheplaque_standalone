@@ -49,6 +49,14 @@
         <input type="text" id="submitted_by" name="submitted_by" value="{{ plaque.submitted_by or '' }}">
       </div>
 
+      <div class="form-group">
+        <label for="tags">Tags</label>
+        <input type="text" id="tags" name="tags"
+               value="{{ plaque.tags | join(', ') if plaque.tags else '' }}"
+               placeholder="e.g. history, war, boston — comma separated">
+        <p style="font-size:12px;color:var(--text-muted);margin-top:5px">Separate multiple tags with commas</p>
+      </div>
+
       <div class="toggle-row">
         <input type="checkbox" id="approved" name="approved" {% if plaque.approved %}checked{% endif %}>
         <label for="approved">Approved (visible on map and homepage)</label>

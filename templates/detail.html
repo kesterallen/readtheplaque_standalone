@@ -31,6 +31,14 @@
       {% if plaque.description %}
       <div class="plaque-text-box">{{ plaque.description }}</div>
       {% endif %}
+      {% if plaque.tags %}
+      <div class="detail-tags">
+        {% for tag in plaque.tags %}
+        <a href="/tag/{{ tag }}" class="tag-pill">{{ tag }}</a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       <div class="detail-meta">
         {% if plaque.submitted_by %}
         <span>👤 Submitted by {{ plaque.submitted_by }}</span>

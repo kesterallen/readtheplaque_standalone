@@ -24,9 +24,12 @@ RTP_BASE = "https://readtheplaque.com"
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
-DB_PATH     = os.path.join(BASE_DIR, "plaques.db")
-UPLOAD_DIR  = os.path.join(BASE_DIR, "static", "uploads")
-THUMB_DIR   = os.path.join(BASE_DIR, "static", "thumbs")
+# On Fly.io (and similar) a persistent volume is mounted at /data.
+# Store the DB and uploads there so they survive redeploys.
+_DATA_DIR   = "/data" if os.path.isdir("/data") else BASE_DIR
+DB_PATH     = os.path.join(_DATA_DIR, "plaques.db")
+UPLOAD_DIR  = os.path.join(_DATA_DIR, "uploads")
+THUMB_DIR   = os.path.join(_DATA_DIR, "thumbs")
 THUMB_SIZE  = (400, 300)
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_MB      = 16
@@ -124,6 +127,20 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_plaques_slug     ON plaques(slug);
     CREATE INDEX IF NOT EXISTS idx_plaques_location ON plaques(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_plaques_approved ON plaques(approved);
+
+    CREATE TABLE IF NOT EXISTS tags (
+        id   INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT    UNIQUE NOT NULL COLLATE NOCASE
+    );
+
+    CREATE TABLE IF NOT EXISTS plaque_tags (
+        plaque_id INTEGER NOT NULL REFERENCES plaques(id) ON DELETE CASCADE,
+        tag_id    INTEGER NOT NULL REFERENCES tags(id)    ON DELETE CASCADE,
+        PRIMARY KEY (plaque_id, tag_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plaque_tags_plaque ON plaque_tags(plaque_id);
+    CREATE INDEX IF NOT EXISTS idx_plaque_tags_tag    ON plaque_tags(tag_id);
     """)
 
     # Migrations — ALTER TABLE is DDL, each auto-commits
@@ -279,6 +296,38 @@ def plaque_to_dict(row):
     return d
 
 
+# ── Tag helpers ────────────────────────────────────────────────────────────────
+def get_tags_for_plaque(db, plaque_id):
+    """Return list of tag name strings for a plaque."""
+    rows = db.execute(
+        "SELECT t.name FROM tags t "
+        "JOIN plaque_tags pt ON pt.tag_id = t.id "
+        "WHERE pt.plaque_id = ? ORDER BY t.name",
+        (plaque_id,),
+    ).fetchall()
+    return [r["name"] for r in rows]
+
+
+def set_tags_for_plaque(db, plaque_id, tag_names):
+    """Replace all tags for a plaque with the given list of tag name strings."""
+    db.execute("DELETE FROM plaque_tags WHERE plaque_id=?", (plaque_id,))
+    for name in tag_names:
+        name = name.strip().lower()
+        if not name:
+            continue
+        db.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (name,))
+        tag_id = db.execute("SELECT id FROM tags WHERE name=?", (name,)).fetchone()["id"]
+        db.execute(
+            "INSERT OR IGNORE INTO plaque_tags (plaque_id, tag_id) VALUES (?,?)",
+            (plaque_id, tag_id),
+        )
+
+
+def parse_tags(raw):
+    """Parse a comma-separated tag string into a cleaned list."""
+    return [t.strip().lower() for t in raw.split(",") if t.strip()]
+
+
 # ── Admin helpers ──────────────────────────────────────────────────────────────
 def is_admin():
     return session.get("admin") is True
@@ -374,16 +423,21 @@ def submit():
     base_slug = "-".join(title.lower().split())[:60]
     slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
+    raw_tags = request.form.get("tags", "")
+    tag_names = parse_tags(raw_tags)
+
     with get_db() as db:
-            db.execute(
-                "INSERT INTO plaques "
-                "(slug,title,description,location,latitude,longitude,"
-                "image_file,thumb_file,submitted_by,approved,created_at)"
-                " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
-                (slug, title, description, location, lat, lng,
-                 filename, thumb_filename if thumb_ok else None,
-                 submitted_by, datetime.utcnow().isoformat())
-            )
+        db.execute(
+            "INSERT INTO plaques "
+            "(slug,title,description,location,latitude,longitude,"
+            "image_file,thumb_file,submitted_by,approved,created_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
+            (slug, title, description, location, lat, lng,
+             filename, thumb_filename if thumb_ok else None,
+             submitted_by, datetime.utcnow().isoformat())
+        )
+        plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
+        set_tags_for_plaque(db, plaque_id, tag_names)
 
     return jsonify({"ok": True, "slug": slug, "pending": True})
 
@@ -394,9 +448,30 @@ def plaque_detail(slug):
         row = db.execute(
             "SELECT * FROM plaques WHERE slug=? AND approved=1", (slug,)
         ).fetchone()
-    if not row:
-        abort(404)
-    return render_template("detail.html", plaque=plaque_to_dict(row))
+        if not row:
+            abort(404)
+        tags = get_tags_for_plaque(db, row["id"])
+    plaque = plaque_to_dict(row)
+    plaque["tags"] = tags
+    return render_template("detail.html", plaque=plaque)
+
+
+@app.route("/tag/<tag_name>")
+def tag_page(tag_name):
+    tag_name = tag_name.strip().lower()
+    with get_db() as db:
+        tag = db.execute("SELECT * FROM tags WHERE name=?", (tag_name,)).fetchone()
+        if not tag:
+            abort(404)
+        rows = db.execute(
+            "SELECT p.* FROM plaques p "
+            "JOIN plaque_tags pt ON pt.plaque_id = p.id "
+            "JOIN tags t ON t.id = pt.tag_id "
+            "WHERE t.name=? AND p.approved=1 ORDER BY p.created_at DESC",
+            (tag_name,),
+        ).fetchall()
+    plaques = [plaque_to_dict(r) for r in rows]
+    return render_template("tag.html", tag=tag_name, plaques=plaques)
 
 
 # ── Admin ──────────────────────────────────────────────────────────────────────
@@ -538,16 +613,20 @@ def admin_edit(plaque_id):
 
     set_featured = bool(request.form.get("set_featured"))
 
+    raw_tags = request.form.get("tags", "")
+    tag_names = parse_tags(raw_tags)
+
     with get_db() as db:
-            if set_featured:
-                db.execute("UPDATE plaques SET is_featured=0")
-            db.execute(
-                "UPDATE plaques SET title=?, description=?, location=?, latitude=?, longitude=?,"
-                " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=? WHERE id=?",
-                (title, description, location, lat, lng,
-                 submitted_by, approved, 1 if set_featured else 0,
-                 new_img_file, new_thumb_file, plaque_id)
-            )
+        if set_featured:
+            db.execute("UPDATE plaques SET is_featured=0")
+        db.execute(
+            "UPDATE plaques SET title=?, description=?, location=?, latitude=?, longitude=?,"
+            " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=? WHERE id=?",
+            (title, description, location, lat, lng,
+             submitted_by, approved, 1 if set_featured else 0,
+             new_img_file, new_thumb_file, plaque_id)
+        )
+        set_tags_for_plaque(db, plaque_id, tag_names)
 
     return redirect(url_for("admin_queue"))
 
@@ -635,9 +714,12 @@ def api_plaque(plaque_id):
         row = db.execute(
             "SELECT * FROM plaques WHERE id=? AND approved=1", (plaque_id,)
         ).fetchone()
-    if not row:
-        abort(404)
-    return jsonify(plaque_to_dict(row))
+        if not row:
+            abort(404)
+        tags = get_tags_for_plaque(db, plaque_id)
+    d = plaque_to_dict(row)
+    d["tags"] = tags
+    return jsonify(d)
 
 
 # ── Upload / thumb file serving ────────────────────────────────────────────────
