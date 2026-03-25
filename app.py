@@ -1,7 +1,5 @@
 # TODO: approved/pending/deleted? not just binary?
-# TODO: nearby-plaques?
-# TODO: remove "location" field
-# TODO: double-check tags details (esp edit page)
+# TODO: remove "location" field?
 # TODO: move admin password and secret key to env vars
 """
 PlaqueWorld - A 3-tier web application for sharing historical plaques.
@@ -148,15 +146,6 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_plaque_tags_plaque ON plaque_tags(plaque_id);
     CREATE INDEX IF NOT EXISTS idx_plaque_tags_tag    ON plaque_tags(tag_id);
     """)
-
-    # Migrations — ALTER TABLE is DDL, each auto-commits
-    cols = {row[1] for row in db.execute("PRAGMA table_info(plaques)")}
-    if "thumb_file" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN thumb_file TEXT")
-    if "approved" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
-    if "is_featured" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
 
     # Seed with sample data if empty — wrap in transaction so it's all-or-nothing
     count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
@@ -751,7 +740,7 @@ def api_search():
 
 @app.route("/api/nearby/<int:plaque_id>")
 def api_nearby(plaque_id):
-    """Return the 10 nearest approved plaques to a given plaque, sorted by distance."""
+    """Return 10 of the nearest approved plaques to a given plaque, sorted by distance."""
     with get_db() as db:
         origin = db.execute(
             "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
@@ -768,7 +757,8 @@ def api_nearby(plaque_id):
         candidates = db.execute(
             "SELECT * FROM plaques WHERE approved=1 AND id != ? "
             "AND latitude  BETWEEN ? AND ? "
-            "AND longitude BETWEEN ? AND ?",
+            "AND longitude BETWEEN ? AND ? "
+            "LIMIT 10",
             (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
         ).fetchall()
 
@@ -785,7 +775,7 @@ def api_nearby(plaque_id):
     ranked = sorted(
         candidates,
         key=lambda r: haversine(lat, lng, r["latitude"], r["longitude"]),
-    )[:10]
+    )
 
     results = []
     for r in ranked:
@@ -843,123 +833,6 @@ def _placeholder_jpeg(filename):
     return buf.getvalue()
 
 
-# ── RTP import ─────────────────────────────────────────────────────────────────
-def _rtp_fetch(url, timeout=15):
-    req = urllib.request.Request(url, headers={
-        "User-Agent": "Mozilla/5.0 (compatible; PlaqueWorldImporter/1.0)"
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read()
-
-
-def _rtp_slugs_from_random_page(num):
-    html = _rtp_fetch(f"{RTP_BASE}/random/{num}", timeout=30).decode("utf-8", errors="replace")
-    paths = re.findall(r'href="(/plaque/([^"]+))"', html)
-    seen, slugs = set(), []
-    for _, slug in paths:
-        if slug not in seen:
-            seen.add(slug)
-            slugs.append(slug)
-    return slugs
-
-
-def _rtp_import_plaque(title_url):
-    import json as _json
-
-    geojson_url = f"{RTP_BASE}/geojson/{title_url}"
-    try:
-        data = _json.loads(_rtp_fetch(geojson_url))
-    except Exception as e:
-        return {"title_url": title_url, "ok": False, "error": f"geojson fetch failed: {e}"}
-
-    title   = (data.get("title") or "").strip()
-    img_url = data.get("img_url_tiny", "")
-    try:
-        lat = float(data.get("lat", ""))
-        lng = float(data.get("lng", ""))
-    except (TypeError, ValueError):
-        lat = lng = None
-
-    if not title or lat is None or not img_url:
-        return {"title_url": title_url, "ok": False,
-                "error": f"incomplete data (title={bool(title)}, lat={lat}, img={bool(img_url)})"}
-
-    # Download image
-    try:
-        img_bytes = _rtp_fetch(img_url, timeout=20)
-    except Exception as e:
-        return {"title_url": title_url, "ok": False, "error": f"image download failed: {e}"}
-
-    filename = new_image_filename("jpg")
-    with open(subdir_path(UPLOAD_DIR, filename), "wb") as f:
-        f.write(img_bytes)
-
-    # Create thumbnail
-    thumb_filename = new_thumb_filename()
-    thumb_ok = make_thumbnail_from_bytes(img_bytes, thumb_filename)
-
-    local_slug = f"{re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:60]}-{uuid.uuid4().hex[:6]}"
-
-    try:
-        with get_db() as db:
-                db.execute(
-                    "INSERT OR IGNORE INTO plaques "
-                    "(slug,title,description,location,latitude,longitude,"
-                    "image_file,thumb_file,submitted_by,approved,created_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?,1,?)",
-                    (local_slug, title, "", "", lat, lng,
-                     filename, thumb_filename if thumb_ok else None,
-                     "readtheplaque.com", datetime.utcnow().isoformat())
-                )
-    except Exception as e:
-        return {"title_url": title_url, "ok": False, "error": f"db insert failed: {e}"}
-
-    return {"title_url": title_url, "ok": True, "title": title}
-
-
-@app.route("/api/import/rtp/<int:num_plaques>", methods=["POST"])
-def import_from_rtp(num_plaques):
-    """
-    Fetch num_plaques random plaques from readtheplaque.com via /geojson/<title_url>.
-    Imported plaques are auto-approved (trusted source).
-    Usage: POST /api/import/rtp/100
-    """
-    num_plaques = max(1, min(num_plaques, 200))
-
-    try:
-        slugs = _rtp_slugs_from_random_page(num_plaques)
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Could not reach readtheplaque.com: {e}"}), 502
-
-    if not slugs:
-        return jsonify({"ok": False, "error": "No plaque links found on random page"}), 502
-
-    results = []
-    imported = skipped = errors = 0
-
-    for slug in slugs[:num_plaques]:
-        res = _rtp_import_plaque(slug)
-        results.append(res)
-        if res["ok"]:
-            imported += 1
-        elif "UNIQUE constraint" in res.get("error", ""):
-            skipped += 1
-        else:
-            errors += 1
-
-    with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
-
-    return jsonify({
-        "ok":       True,
-        "source":   f"{RTP_BASE}/random/{num_plaques}",
-        "found":    len(slugs),
-        "imported": imported,
-        "skipped":  skipped,
-        "errors":   errors,
-        "db_total": total,
-        "results":  results,
-    })
 
 
 # Called at import time so Gunicorn/uWSGI/etc. initialise the DB on startup
