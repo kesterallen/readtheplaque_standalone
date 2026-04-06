@@ -2,6 +2,8 @@
 # TODO: approved/pending/deleted? not just a toggle?
 # TODO: remove "location" field?
 # TODO: move admin password and secret key to env vars
+# TODO: more than one image per plaque
+# TODO: links to lat/lng/zoom on map
 """
 PlaqueWorld - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
