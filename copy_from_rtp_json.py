@@ -25,8 +25,8 @@ def get_rtp_info(slug):
     tags = rtp_plaque["tags"]
     return description, img_url, updated_on, tags
 
-with open("rtp_plaques.geojson") as file:
-    plaques = json.load(file)
+with open("../../Dropbox/gcloud/projects/read-the-plaque/static/plaques.geojson") as geojson:
+    plaques = json.load(geojson)
 
     for plaque in random.choices(plaques["features"], k=NUM_IMPORT):
         props = plaque["properties"]

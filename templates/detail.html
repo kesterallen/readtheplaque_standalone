@@ -13,14 +13,27 @@
 
   <div class="detail-hero">
     <div>
-      <img class="detail-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}"
-           id="plaqueImg" onclick="openLightbox()">
+      <!-- Gallery: click any thumb to swap main image -->
+      <img class="detail-img" id="mainImg"
+           src="{{ plaque.images[0].image_url if plaque.images else plaque.image_url }}"
+           alt="{{ plaque.title }}" onclick="openLightbox(this.src)">
+
+      {% if plaque.images and plaque.images|length > 1 %}
+      <div class="gallery-thumbs">
+        {% for img in plaque.images %}
+        <img src="{{ img.thumb_url }}" alt=""
+             class="gallery-thumb{% if loop.first %} active{% endif %}"
+             onclick="swapMain(this, '{{ img.image_url }}')">
+        {% endfor %}
+      </div>
+      {% endif %}
 
 <!-- Lightbox -->
 <div id="lightbox" onclick="closeLightbox()">
   <button id="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
-  <img id="lightbox-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}"
-       onclick="event.stopPropagation()">
+  <img id="lightbox-img"
+       src="{{ plaque.images[0].image_url if plaque.images else plaque.image_url }}"
+       alt="{{ plaque.title }}" onclick="event.stopPropagation()">
 </div>
     </div>
     <div class="detail-info">
@@ -51,7 +64,7 @@
   <div id="miniMap" class="mini-map"></div>
 
   <section class="nearby-section">
-    <h2 class="nearby-title">Some Nearby Plaques</h2>
+    <h2 class="nearby-title">Nearby Plaques</h2>
     <div class="nearby-grid" id="nearbyGrid">
       <div class="nearby-loading">Loading…</div>
     </div>
@@ -81,9 +94,15 @@ L.marker([lat,lng],{icon}).addTo(m)
  .bindPopup('<strong>{{ plaque.title }}</strong>').openPopup();
 </script>
 <script>
-function openLightbox() {
+function openLightbox(src) {
+  if (src) document.getElementById('lightbox-img').src = src;
   document.getElementById('lightbox').classList.add('open');
   document.body.style.overflow = 'hidden';
+}
+function swapMain(thumb, src) {
+  document.getElementById('mainImg').src = src;
+  document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
+  thumb.classList.add('active');
 }
 function closeLightbox() {
   document.getElementById('lightbox').classList.remove('open');

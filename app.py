@@ -1,4 +1,5 @@
-# TODO: approved/pending/deleted? not just binary?
+# display HTML-ifiied text in "description" properly
+# TODO: approved/pending/deleted? not just a toggle?
 # TODO: remove "location" field?
 # TODO: move admin password and secret key to env vars
 """
@@ -8,6 +9,7 @@ Tier 2: Flask application server (this file)
 Tier 3: SQLite database (plaques.db)
 """
 
+import hashlib
 import io
 import math
 import os
@@ -145,7 +147,46 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_plaque_tags_plaque ON plaque_tags(plaque_id);
     CREATE INDEX IF NOT EXISTS idx_plaque_tags_tag    ON plaque_tags(tag_id);
+
+    CREATE TABLE IF NOT EXISTS plaque_images (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        plaque_id  INTEGER NOT NULL REFERENCES plaques(id) ON DELETE CASCADE,
+        image_file TEXT    NOT NULL,
+        thumb_file TEXT,
+        image_hash TEXT,
+        is_primary INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT    NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_plaque_images_plaque ON plaque_images(plaque_id);
+    CREATE INDEX IF NOT EXISTS idx_plaque_images_hash   ON plaque_images(plaque_id, image_hash);
     """)
+
+    # TODO: delete migrations?
+    # Migrations — ALTER TABLE is DDL, each auto-commits
+    cols = {row[1] for row in db.execute("PRAGMA table_info(plaques)")}
+    if "thumb_file" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN thumb_file TEXT")
+    if "approved" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
+    if "is_featured" not in cols:
+        db.execute("ALTER TABLE plaques ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
+
+    img_cols = {row[1] for row in db.execute("PRAGMA table_info(plaque_images)")}
+    if "image_hash" not in img_cols:
+        db.execute("ALTER TABLE plaque_images ADD COLUMN image_hash TEXT")
+
+    # Seed plaque_images from existing plaques that have no images yet
+    existing = {r[0] for r in db.execute("SELECT plaque_id FROM plaque_images")}
+    rows = db.execute("SELECT id, image_file, thumb_file, created_at FROM plaques").fetchall()
+    for r in rows:
+        if r["id"] not in existing and r["image_file"]:
+            db.execute(
+                "INSERT INTO plaque_images (plaque_id, image_file, thumb_file, is_primary, sort_order, created_at)"
+                " VALUES (?,?,?,1,0,?)",
+                (r["id"], r["image_file"], r["thumb_file"], r["created_at"])
+            )
 
     # Seed with sample data if empty — wrap in transaction so it's all-or-nothing
     count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
@@ -291,6 +332,89 @@ def plaque_to_dict(row):
     return d
 
 
+# ── Image helpers ──────────────────────────────────────────────────────────────
+def get_images_for_plaque(db, plaque_id):
+    """Return list of image dicts for a plaque, primary first."""
+    rows = db.execute(
+        "SELECT * FROM plaque_images WHERE plaque_id=? ORDER BY is_primary DESC, sort_order ASC, id ASC",
+        (plaque_id,),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def image_url(filename):
+    return f"/uploads/{filename[:2]}/{filename}" if (
+        len(filename) >= 2 and all(c in "0123456789abcdef" for c in filename[:2])
+    ) else f"/uploads/{filename}"
+
+
+def thumb_url(filename):
+    if not filename:
+        return None
+    return f"/thumbs/{filename[:2]}/{filename}" if (
+        len(filename) >= 2 and all(c in "0123456789abcdef" for c in filename[:2])
+    ) else f"/thumbs/{filename}"
+
+
+def add_image_to_plaque(db, plaque_id, file_obj, ext, is_primary=False, sort_order=0):
+    """Save a file, create thumbnail, insert into plaque_images.
+
+    Returns a dict with keys: image_file, thumb_file, duplicate (bool).
+    If the image hash already exists for this plaque, no file is saved and
+    duplicate=True is returned so callers can inform the user.
+    """
+    data = file_obj.read()
+    image_hash = hashlib.sha256(data).hexdigest()
+
+    # Reject if this exact image already exists for this plaque
+    existing = db.execute(
+        "SELECT id FROM plaque_images WHERE plaque_id=? AND image_hash=?",
+        (plaque_id, image_hash),
+    ).fetchone()
+    if existing:
+        return {"image_file": None, "thumb_file": None, "duplicate": True}
+
+    filename = new_image_filename(ext)
+    with open(subdir_path(UPLOAD_DIR, filename), "wb") as fh:
+        fh.write(data)
+    thumb_filename = new_thumb_filename()
+    thumb_ok = make_thumbnail(filename, thumb_filename)
+    now = datetime.utcnow().isoformat()
+    db.execute(
+        "INSERT INTO plaque_images"
+        " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order, created_at)"
+        " VALUES (?,?,?,?,?,?,?)",
+        (plaque_id, filename, thumb_filename if thumb_ok else None,
+         image_hash, 1 if is_primary else 0, sort_order, now),
+    )
+    # Keep plaques.image_file / thumb_file in sync with primary image
+    if is_primary:
+        db.execute(
+            "UPDATE plaques SET image_file=?, thumb_file=? WHERE id=?",
+            (filename, thumb_filename if thumb_ok else None, plaque_id),
+        )
+    return {"image_file": filename, "thumb_file": thumb_filename if thumb_ok else None, "duplicate": False}
+
+
+def sync_primary_image(db, plaque_id):
+    """Update plaques.image_file to match the current primary image in plaque_images."""
+    primary = db.execute(
+        "SELECT image_file, thumb_file FROM plaque_images WHERE plaque_id=? AND is_primary=1 LIMIT 1",
+        (plaque_id,),
+    ).fetchone()
+    if not primary:
+        # Fall back to first image
+        primary = db.execute(
+            "SELECT image_file, thumb_file FROM plaque_images WHERE plaque_id=? ORDER BY sort_order, id LIMIT 1",
+            (plaque_id,),
+        ).fetchone()
+    if primary:
+        db.execute(
+            "UPDATE plaques SET image_file=?, thumb_file=? WHERE id=?",
+            (primary["image_file"], primary["thumb_file"], plaque_id),
+        )
+
+
 # ── Tag helpers ────────────────────────────────────────────────────────────────
 def get_tags_for_plaque(db, plaque_id):
     """Return list of tag name strings for a plaque."""
@@ -367,10 +491,21 @@ def index(page=1):
 
 
 @app.route("/map")
-def map_view():
+@app.route("/map/<path:coords>")
+def map_view(coords=None):
+    lat, lng, zoom = 20.0, 10.0, 2
+    if coords:
+        parts = coords.split("/")
+        if len(parts) == 3:
+            try:
+                lat  = max(-90.0,  min(90.0,  float(parts[0])))
+                lng  = max(-180.0, min(180.0, float(parts[1])))
+                zoom = max(1,      min(19,    int(parts[2])))
+            except ValueError:
+                pass  # bad values → fall back to defaults
     with get_db() as db:
         total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
-    return render_template("map.html", total=total)
+    return render_template("map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom)
 
 
 @app.route("/submit", methods=["GET", "POST"])
@@ -396,45 +531,90 @@ def submit():
     if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
         errors.append("Coordinates out of range.")
 
-    image_file = request.files.get("image")
-    if not image_file or image_file.filename == "":
-        errors.append("An image is required.")
+    image_files = request.files.getlist("images")
+    image_files = [f for f in image_files if f and f.filename]
+    if not image_files:
+        errors.append("At least one image is required.")
     else:
-        ext = image_file.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ALLOWED_EXT:
-            errors.append(f"Allowed image types: {', '.join(ALLOWED_EXT)}")
+        for f in image_files:
+            ext = f.filename.rsplit(".", 1)[-1].lower()
+            if ext not in ALLOWED_EXT:
+                errors.append(f"'{f.filename}': allowed types are {', '.join(ALLOWED_EXT)}")
 
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
-    # Save full-size image
-    filename  = new_image_filename(ext)
-    image_file.save(subdir_path(UPLOAD_DIR, filename))
-
-    # Create thumbnail
-    thumb_filename = new_thumb_filename()
-    thumb_ok = make_thumbnail(filename, thumb_filename)
-
     base_slug = "-".join(title.lower().split())[:60]
     slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
-
     raw_tags = request.form.get("tags", "")
     tag_names = parse_tags(raw_tags)
 
     with get_db() as db:
+        duplicates = []
+        saved_images = []
+
+        # Save all images first so we have a real primary filename before inserting the plaque
+        for i, f in enumerate(image_files):
+            ext = f.filename.rsplit(".", 1)[-1].lower()
+            # We don't have a plaque_id yet; write file and get hash, insert row after plaque created
+            data = f.read()
+            image_hash = __import__("hashlib").sha256(data).hexdigest()
+            filename = new_image_filename(ext)
+            with open(subdir_path(UPLOAD_DIR, filename), "wb") as fh:
+                fh.write(data)
+            thumb_filename = new_thumb_filename()
+            thumb_ok = make_thumbnail(filename, thumb_filename)
+            saved_images.append({
+                "filename": filename,
+                "thumb": thumb_filename if thumb_ok else None,
+                "hash": image_hash,
+                "original_name": f.filename,
+            })
+
+        if not saved_images:
+            return jsonify({"ok": False, "errors": ["No images could be saved."]}), 400
+
+        primary = saved_images[0]
         db.execute(
             "INSERT INTO plaques "
             "(slug,title,description,location,latitude,longitude,"
             "image_file,thumb_file,submitted_by,approved,created_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
             (slug, title, description, location, lat, lng,
-             filename, thumb_filename if thumb_ok else None,
+             primary["filename"], primary["thumb"],
              submitted_by, datetime.utcnow().isoformat())
         )
         plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
+
+        # Insert plaque_images rows, deduplicating by hash within this plaque
+        seen_hashes = set()
+        saved = 0
+        for i, img in enumerate(saved_images):
+            if img["hash"] in seen_hashes:
+                duplicates.append(img["original_name"])
+                # Clean up the already-written duplicate file
+                try:
+                    os.remove(subdir_path(UPLOAD_DIR, img["filename"]))
+                    if img["thumb"]: os.remove(subdir_path(THUMB_DIR, img["thumb"]))
+                except OSError:
+                    pass
+                continue
+            seen_hashes.add(img["hash"])
+            db.execute(
+                "INSERT INTO plaque_images"
+                " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order, created_at)"
+                " VALUES (?,?,?,?,?,?,?)",
+                (plaque_id, img["filename"], img["thumb"], img["hash"],
+                 1 if saved == 0 else 0, i, datetime.utcnow().isoformat())
+            )
+            saved += 1
+
         set_tags_for_plaque(db, plaque_id, tag_names)
 
-    return jsonify({"ok": True, "slug": slug, "pending": True})
+    resp = {"ok": True, "slug": slug, "pending": True}
+    if duplicates:
+        resp["duplicates"] = duplicates
+    return jsonify(resp)
 
 
 @app.route("/plaque/<slug>")
@@ -445,9 +625,16 @@ def plaque_detail(slug):
         ).fetchone()
         if not row:
             abort(404)
-        tags = get_tags_for_plaque(db, row["id"])
+        tags   = get_tags_for_plaque(db, row["id"])
+        images = get_images_for_plaque(db, row["id"])
     plaque = plaque_to_dict(row)
     plaque["tags"] = tags
+    plaque["images"] = [
+        {"image_url": image_url(img["image_file"]),
+         "thumb_url": thumb_url(img["thumb_file"]) or image_url(img["image_file"]),
+         "id": img["id"], "is_primary": img["is_primary"]}
+        for img in images
+    ]
     return render_template("detail.html", plaque=plaque)
 
 
@@ -556,9 +743,16 @@ def admin_edit(plaque_id):
 
     if request.method == "GET":
         with get_db() as db:
-            tags = get_tags_for_plaque(db, plaque_id)
+            tags   = get_tags_for_plaque(db, plaque_id)
+            images = get_images_for_plaque(db, plaque_id)
         plaque = plaque_to_dict(row)
         plaque["tags"] = tags
+        plaque["images"] = [
+            {"image_url": image_url(img["image_file"]),
+             "thumb_url": thumb_url(img["thumb_file"]) or image_url(img["image_file"]),
+             "id": img["id"], "is_primary": img["is_primary"], "sort_order": img["sort_order"]}
+            for img in images
+        ]
         return render_template("admin_edit.html", plaque=plaque)
 
     # POST — save edits
@@ -632,16 +826,23 @@ def admin_edit(plaque_id):
 
 @app.route("/admin/rotate/<int:plaque_id>", methods=["POST"])
 def admin_rotate(plaque_id):
-    """Rotate a plaque's image 90° clockwise. Regenerates the thumbnail."""
+    """Rotate 90° clockwise. ?type=image treats plaque_id as a plaque_images.id."""
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
 
+    use_image_id = request.args.get("type") == "image"
+
     with get_db() as db:
-        row = db.execute(
-            "SELECT image_file, thumb_file FROM plaques WHERE id=?", (plaque_id,)
-        ).fetchone()
+        if use_image_id:
+            row = db.execute(
+                "SELECT image_file, thumb_file FROM plaque_images WHERE id=?", (plaque_id,)
+            ).fetchone()
+        else:
+            row = db.execute(
+                "SELECT image_file, thumb_file FROM plaques WHERE id=?", (plaque_id,)
+            ).fetchone()
     if not row:
-        return jsonify({"ok": False, "error": "Plaque not found"}), 404
+        return jsonify({"ok": False, "error": "Not found"}), 404
 
     img_path = subdir_path(UPLOAD_DIR, row["image_file"])
     if not os.path.exists(img_path):
@@ -649,10 +850,7 @@ def admin_rotate(plaque_id):
 
     try:
         with Image.open(img_path) as img:
-            rotated = img.rotate(-90, expand=True)  # -90 = 90° clockwise
-            rotated.save(img_path)
-
-        # Regenerate thumbnail
+            img.rotate(-90, expand=True).save(img_path)
         if row["thumb_file"]:
             make_thumbnail(row["image_file"], row["thumb_file"])
     except Exception as e:
@@ -738,9 +936,68 @@ def api_search():
     return jsonify([plaque_to_dict(r) for r in rows])
 
 
+@app.route("/admin/images/<int:plaque_id>/add", methods=["POST"])
+def admin_image_add(plaque_id):
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+    f = request.files.get("image")
+    if not f or not f.filename:
+        return jsonify({"ok": False, "error": "No image provided"}), 400
+    ext = f.filename.rsplit(".", 1)[-1].lower()
+    if ext not in ALLOWED_EXT:
+        return jsonify({"ok": False, "error": f"File type not allowed"}), 400
+    with get_db() as db:
+        count = db.execute("SELECT COUNT(*) FROM plaque_images WHERE plaque_id=?", (plaque_id,)).fetchone()[0]
+        result = add_image_to_plaque(db, plaque_id, f, ext, is_primary=(count == 0), sort_order=count)
+        if result["duplicate"]:
+            return jsonify({"ok": False, "error": "Duplicate image — this photo is already attached to this plaque", "duplicate": True}), 409
+        row = db.execute("SELECT id FROM plaque_images WHERE plaque_id=? ORDER BY id DESC LIMIT 1", (plaque_id,)).fetchone()
+    return jsonify({"ok": True, "id": row["id"],
+                    "image_url": image_url(result["image_file"]),
+                    "thumb_url": thumb_url(result["thumb_file"]) or image_url(result["image_file"])})
+
+
+@app.route("/admin/images/<int:image_id>/delete", methods=["POST"])
+def admin_image_delete(image_id):
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+    with get_db() as db:
+        img = db.execute("SELECT * FROM plaque_images WHERE id=?", (image_id,)).fetchone()
+        if not img:
+            return jsonify({"ok": False, "error": "Image not found"}), 404
+        plaque_id = img["plaque_id"]
+        count = db.execute("SELECT COUNT(*) FROM plaque_images WHERE plaque_id=?", (plaque_id,)).fetchone()[0]
+        if count <= 1:
+            return jsonify({"ok": False, "error": "Cannot delete the only image"}), 400
+        for f, folder in [(img["image_file"], UPLOAD_DIR), (img["thumb_file"], THUMB_DIR)]:
+            if f:
+                try: os.remove(subdir_path(folder, f))
+                except OSError: pass
+        db.execute("DELETE FROM plaque_images WHERE id=?", (image_id,))
+        if img["is_primary"]:
+            db.execute("UPDATE plaque_images SET is_primary=1 WHERE plaque_id=? ORDER BY sort_order, id LIMIT 1", (plaque_id,))
+            sync_primary_image(db, plaque_id)
+    return jsonify({"ok": True})
+
+
+@app.route("/admin/images/<int:image_id>/set-primary", methods=["POST"])
+def admin_image_set_primary(image_id):
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+    with get_db() as db:
+        img = db.execute("SELECT * FROM plaque_images WHERE id=?", (image_id,)).fetchone()
+        if not img:
+            return jsonify({"ok": False, "error": "Image not found"}), 404
+        plaque_id = img["plaque_id"]
+        db.execute("UPDATE plaque_images SET is_primary=0 WHERE plaque_id=?", (plaque_id,))
+        db.execute("UPDATE plaque_images SET is_primary=1 WHERE id=?", (image_id,))
+        sync_primary_image(db, plaque_id)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/nearby/<int:plaque_id>")
 def api_nearby(plaque_id):
-    """Return 10 of the nearest approved plaques to a given plaque, sorted by distance."""
+    """Return the 10 nearest approved plaques to a given plaque, sorted by distance."""
     with get_db() as db:
         origin = db.execute(
             "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",

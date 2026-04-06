@@ -50,7 +50,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // ── Map ─────────────────────────────────────────────────────────────────────
-  var map = L.map("map", { preferCanvas: true }).setView([20, 10], 2);
+  var map = L.map("map", { preferCanvas: true }).setView([{{ init_lat }}, {{ init_lng }}], {{ init_zoom }});
 
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,

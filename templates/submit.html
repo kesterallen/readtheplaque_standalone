@@ -14,11 +14,11 @@
   <div class="form-section">
     <h2>📸 Photo</h2>
     <div class="drop-zone" id="dropZone">
-      <input type="file" id="imageFile" accept="image/*">
+      <input type="file" id="imageFile" name="images" accept="image/*" multiple>
       <div class="dz-icon">🏛️</div>
-      <div class="dz-text">Drop image here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB</small></div>
+      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB · first image is primary</small></div>
     </div>
-    <div id="imgPreviewWrap"><img id="imgPreview" alt="Preview"></div>
+    <div id="imgPreviewWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px"></div>
     <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
   </div>
 
@@ -83,30 +83,47 @@ dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dra
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
 dz.addEventListener('drop', e => {
   e.preventDefault(); dz.classList.remove('drag-over');
-  const f = e.dataTransfer.files[0];
-  if (f) handleFile(f);
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFiles(fileInput.files); });
 
-function handleFile(file) {
-  // Show image preview
-  const reader = new FileReader();
-  reader.onload = e => {
-    preview.src = e.target.result;
-    previewWrap.style.display = 'block';
-  };
-  reader.readAsDataURL(file);
+function handleFiles(files) {
+  previewWrap.innerHTML = '';
+  Array.from(files).forEach(function(file, i) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-block';
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = 'height:120px;border-radius:6px;border:2px solid ' + (i===0 ? 'var(--amber)' : 'var(--border)');
+      img.title = i === 0 ? 'Primary image' : '';
+      if (i === 0) {
+        const badge = document.createElement('span');
+        badge.textContent = 'Primary';
+        badge.style.cssText = 'position:absolute;top:4px;left:4px;background:var(--amber);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px';
+        wrap.appendChild(badge);
+      }
+      wrap.appendChild(img);
+      previewWrap.appendChild(wrap);
+    };
+    reader.readAsDataURL(file);
+  });
+  previewWrap.style.display = files.length ? 'flex' : 'none';
 
-  // Extract GPS from EXIF via exifr
-  exifr.gps(file).then(coords => {
-    if (coords && coords.latitude != null && coords.longitude != null) {
-      setCoords(coords.latitude, coords.longitude);
-      gpsBadge.style.display = 'block';
-    } else {
-      gpsBadge.style.display = 'none';
-    }
-  }).catch(() => { gpsBadge.style.display = 'none'; });
+  // Extract GPS from first image only
+  if (files[0]) {
+    exifr.gps(files[0]).then(coords => {
+      if (coords && coords.latitude != null && coords.longitude != null) {
+        setCoords(coords.latitude, coords.longitude);
+        gpsBadge.style.display = 'block';
+      } else {
+        gpsBadge.style.display = 'none';
+      }
+    }).catch(() => { gpsBadge.style.display = 'none'; });
+  }
 }
+function handleFile(file) { handleFiles([file]); }
 
 // ── Picker map ────────────────────────────────────────────────────────────────
 const pickerMap = L.map('locationPicker').setView([20, 0], 1);
@@ -149,7 +166,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   alertBox.style.display = 'none';
 
   const fd = new FormData();
-  if (fileInput.files[0]) fd.append('image', fileInput.files[0]);
+  Array.from(fileInput.files).forEach(f => fd.append('images', f));
   fd.append('title',        document.getElementById('title').value.trim());
   fd.append('description',  document.getElementById('description').value.trim());
   fd.append('location',     document.getElementById('location').value.trim());

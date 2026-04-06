@@ -70,21 +70,29 @@
 
     <div class="form-section">
       <h2>📸 Image</h2>
-      <div class="current-img-wrap">
-        <img class="current-img" src="{{ plaque.image_url }}" alt="{{ plaque.title }}" id="currentImg">
-        <div class="current-img-info">
-          Current image<br>
-          {% if plaque.thumb_file %}Thumbnail: ✓{% else %}Thumbnail: not generated{% endif %}<br>
-          <small>Upload a new image below to replace it.</small><br><br>
-          <button type="button" id="rotateBtn" class="btn-rotate">↻ Rotate 90°</button>
-          <span id="rotateStatus" style="font-size:12px;margin-left:8px;color:var(--text-muted)"></span>
+      <!-- Existing images gallery -->
+      <div class="edit-gallery" id="editGallery">
+        {% for img in plaque.images %}
+        <div class="edit-gallery-item" id="gitem-{{ img.id }}">
+          <img src="{{ img.thumb_url }}" alt="">
+          {% if img.is_primary %}<span class="edit-gallery-primary">Primary</span>{% endif %}
+          <div class="edit-gallery-actions">
+            {% if not img.is_primary %}
+            <button type="button" class="eg-btn" onclick="setPrimary({{ img.id }})">★ Primary</button>
+            {% endif %}
+            <button type="button" class="eg-btn eg-btn-rotate" onclick="rotateImg({{ img.id }}, this)">↻</button>
+            <button type="button" class="eg-btn eg-btn-del" onclick="deleteImg({{ img.id }})">✕</button>
+          </div>
         </div>
+        {% endfor %}
       </div>
-      <div class="drop-zone" id="dropZone">
-        <input type="file" id="newImage" name="image" accept="image/*">
-        <div class="dz-text">Drop new image here or <strong>click to browse</strong><br><small>Leave empty to keep current · JPEG, PNG, WebP · max 16 MB</small></div>
+
+      <!-- Add more images -->
+      <div class="drop-zone" id="dropZone" style="margin-top:12px">
+        <input type="file" id="newImages" accept="image/*" multiple>
+        <div class="dz-text">Add more images — drop here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB each</small></div>
       </div>
-      <img id="newImgPreview" alt="New image preview">
+      <div id="newImgPreviews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
     </div>
 
     <div class="form-section">
@@ -171,37 +179,89 @@ function showPreview(file) {
   reader.readAsDataURL(file);
 }
 
-// ── Rotate ────────────────────────────────────────────────────────────────────
-document.getElementById('rotateBtn').addEventListener('click', function() {
-  var btn    = document.getElementById('rotateBtn');
-  var status = document.getElementById('rotateStatus');
-  btn.disabled = true;
-  btn.textContent = 'Rotating…';
-  status.textContent = '';
-
-  fetch('/admin/rotate/{{ plaque.id }}', { method: 'POST' })
+// ── Gallery management ───────────────────────────────────────────────────────
+function setPrimary(imageId) {
+  fetch('/admin/images/' + imageId + '/set-primary', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(d) {
       if (d.ok) {
-        // Bust the image cache by appending a timestamp
-        var img = document.getElementById('currentImg');
+        document.querySelectorAll('.edit-gallery-primary').forEach(function(el) { el.remove(); });
+        document.querySelectorAll('[onclick*="setPrimary"]').forEach(function(btn) { btn.style.display = ''; });
+        var item = document.getElementById('gitem-' + imageId);
+        var badge = document.createElement('span');
+        badge.className = 'edit-gallery-primary';
+        badge.textContent = 'Primary';
+        item.insertBefore(badge, item.querySelector('.edit-gallery-actions'));
+        item.querySelector('[onclick*="setPrimary"]').style.display = 'none';
+      }
+    });
+}
+
+function rotateImg(imageId, btn) {
+  btn.disabled = true;
+  fetch('/admin/rotate/' + imageId + '?type=image', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        var item = document.getElementById('gitem-' + imageId);
+        var img = item.querySelector('img');
         var src = img.src.split('?')[0];
         img.src = src + '?t=' + Date.now();
-        status.textContent = '✓ Rotated';
-        status.style.color = '#1a7a43';
-      } else {
-        status.textContent = '✗ ' + (d.error || 'Failed');
-        status.style.color = '#c0392b';
       }
     })
-    .catch(function() {
-      status.textContent = '✗ Network error';
-      status.style.color = '#c0392b';
-    })
-    .finally(function() {
-      btn.disabled = false;
-      btn.textContent = '↻ Rotate 90°';
+    .finally(function() { btn.disabled = false; });
+}
+
+function deleteImg(imageId) {
+  if (!confirm('Delete this image?')) return;
+  fetch('/admin/images/' + imageId + '/delete', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        document.getElementById('gitem-' + imageId).remove();
+      } else {
+        alert(d.error || 'Could not delete image');
+      }
     });
+}
+
+// Add new images without page reload
+var newImagesInput = document.getElementById('newImages');
+var newPreviews    = document.getElementById('newImgPreviews');
+var pendingFiles   = [];
+
+newImagesInput.addEventListener('change', function() {
+  Array.from(newImagesInput.files).forEach(function(file) {
+    pendingFiles.push(file);
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = 'height:80px;border-radius:4px;border:1px solid var(--border)';
+      newPreviews.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+  newPreviews.style.display = pendingFiles.length ? 'flex' : 'none';
+  newImagesInput.value = '';
 });
+
+// Upload pending files on form submit
+document.querySelector('button[type=submit]').addEventListener('click', function(e) {
+  if (!pendingFiles.length) return;
+  // Upload each pending file then submit
+  e.preventDefault();
+  var plaqueId = {{ plaque.id }};
+  var uploads = pendingFiles.map(function(file) {
+    var fd = new FormData();
+    fd.append('image', file);
+    return fetch('/admin/images/' + plaqueId + '/add', { method: 'POST', body: fd })
+      .then(function(r) { return r.json(); });
+  });
+  Promise.all(uploads).then(function() {
+    pendingFiles = [];
+    document.querySelector('form').submit();
+  });
+}, true);
 </script>
 {% endblock %}
