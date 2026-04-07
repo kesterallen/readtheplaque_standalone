@@ -57,7 +57,6 @@
         <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
       </div>
       <p class="card-title">{{ p.title }}</p>
-      {% if p.location %}<p class="card-location">{{ p.location }}</p>{% endif %}
     </a>
     {% endfor %}
   </div>
@@ -123,7 +122,6 @@ async function doSearch(q) {
         <img src="${p.thumb_url || p.image_url}" alt="${esc(p.title)}">
         <div class="sr-info">
           <strong>${esc(p.title)}</strong>
-          ${p.location ? `<span>📍 ${esc(p.location)}</span>` : ''}
         </div>
       </a>`).join('');
   }

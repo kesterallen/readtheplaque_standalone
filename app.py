@@ -1,9 +1,6 @@
 # display HTML-ifiied text in "description" properly
 # TODO: approved/pending/deleted? not just a toggle?
-# TODO: remove "location" field?
 # TODO: move admin password and secret key to env vars
-# TODO: more than one image per plaque
-# TODO: links to lat/lng/zoom on map
 """
 PlaqueWorld - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
@@ -21,14 +18,12 @@ import sqlite3
 import urllib.request
 import urllib.error
 from datetime import datetime
+from typing import Optional
 from PIL import Image, ImageOps
 from flask import (
     Flask, render_template, request, jsonify,
     redirect, url_for, send_from_directory, abort, session
 )
-from werkzeug.utils import secure_filename
-
-RTP_BASE = "https://readtheplaque.com"
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
@@ -77,7 +72,7 @@ def new_thumb_filename() -> str:
     return f"{uuid.uuid4().hex}_thumb.jpg"
 
 # ── Thumbnail helper ───────────────────────────────────────────────────────────
-def _save_thumbnail(img, thumb_filename):
+def _save_thumbnail(img: Image.Image, thumb_filename: str) -> Optional[str]:
     """Cover-crop img to THUMB_SIZE and save as JPEG. Returns filename or None."""
     try:
         ImageOps.fit(img.convert("RGB"), THUMB_SIZE, Image.LANCZOS).save(
@@ -87,7 +82,7 @@ def _save_thumbnail(img, thumb_filename):
     except Exception:
         return None
 
-def make_thumbnail(image_filename, thumb_filename):
+def make_thumbnail(image_filename: str, thumb_filename: str) -> Optional[str]:
     """Create thumbnail from a saved upload file. image_filename is relative."""
     try:
         with Image.open(subdir_path(UPLOAD_DIR, image_filename)) as img:
@@ -95,7 +90,7 @@ def make_thumbnail(image_filename, thumb_filename):
     except Exception:
         return None
 
-def make_thumbnail_from_bytes(img_bytes, thumb_filename):
+def make_thumbnail_from_bytes(img_bytes: bytes, thumb_filename: str) -> Optional[str]:
     try:
         with Image.open(io.BytesIO(img_bytes)) as img:
             return _save_thumbnail(img, thumb_filename)
@@ -104,7 +99,7 @@ def make_thumbnail_from_bytes(img_bytes, thumb_filename):
 
 
 # ── Database helpers ───────────────────────────────────────────────────────────
-def get_db():
+def get_db() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")   # better concurrency
@@ -112,7 +107,7 @@ def get_db():
     return conn
 
 
-def init_db():
+def init_db() -> None:
     db = get_db()
     # DDL — executescript issues an implicit COMMIT before running, safe for schema work
     db.executescript("""
@@ -121,7 +116,6 @@ def init_db():
         slug         TEXT    UNIQUE NOT NULL,
         title        TEXT    NOT NULL,
         description  TEXT,
-        location     TEXT,
         latitude     REAL    NOT NULL,
         longitude    REAL    NOT NULL,
         image_file   TEXT    NOT NULL,
@@ -165,160 +159,135 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_plaque_images_hash   ON plaque_images(plaque_id, image_hash);
     """)
 
-    # TODO: delete migrations?
-    # Migrations — ALTER TABLE is DDL, each auto-commits
-    cols = {row[1] for row in db.execute("PRAGMA table_info(plaques)")}
-    if "thumb_file" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN thumb_file TEXT")
-    if "approved" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN approved INTEGER NOT NULL DEFAULT 0")
-    if "is_featured" not in cols:
-        db.execute("ALTER TABLE plaques ADD COLUMN is_featured INTEGER NOT NULL DEFAULT 0")
-
-    img_cols = {row[1] for row in db.execute("PRAGMA table_info(plaque_images)")}
-    if "image_hash" not in img_cols:
-        db.execute("ALTER TABLE plaque_images ADD COLUMN image_hash TEXT")
-
-    # Seed plaque_images from existing plaques that have no images yet
-    existing = {r[0] for r in db.execute("SELECT plaque_id FROM plaque_images")}
-    rows = db.execute("SELECT id, image_file, thumb_file, created_at FROM plaques").fetchall()
-    for r in rows:
-        if r["id"] not in existing and r["image_file"]:
-            db.execute(
-                "INSERT INTO plaque_images (plaque_id, image_file, thumb_file, is_primary, sort_order, created_at)"
-                " VALUES (?,?,?,1,0,?)",
-                (r["id"], r["image_file"], r["thumb_file"], r["created_at"])
-            )
+    # Seed with sample data if empty — wrap in transaction so it's all-or-nothing
 
     # Seed with sample data if empty — wrap in transaction so it's all-or-nothing
     count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
     if count == 0:
         with db:
             seed_data = [
-                # ── Page 1 ─────────────────────────────────────────────────────
-                ("alamo-san-antonio", "The Alamo",
-                 "HERE ON THIS SITE IN 1836 THE DEFENDERS OF THE ALAMO MADE THEIR HEROIC STAND FOR TEXAS INDEPENDENCE",
-                 "San Antonio, TX", 29.4260, -98.4861, "sample_alamo.jpg", "admin"),
-                ("liberty-bell-philadelphia", "Liberty Bell",
-                 "PROCLAIM LIBERTY THROUGHOUT ALL THE LAND UNTO ALL THE INHABITANTS THEREOF — Leviticus XXV:X",
-                 "Philadelphia, PA", 39.9496, -75.1503, "sample_liberty.jpg", "admin"),
-                ("golden-gate-dedication", "Golden Gate Bridge",
-                 "THIS BRIDGE, A SYMBOL OF HUMAN INGENUITY AND PERSEVERANCE, WAS COMPLETED MAY 27, 1937",
-                 "San Francisco, CA", 37.8199, -122.4783, "sample_goldengate.jpg", "admin"),
-                ("ellis-island-memorial", "Ellis Island",
-                 "THROUGH THESE DOORS PASSED MORE THAN 12 MILLION IMMIGRANTS IN SEARCH OF FREEDOM AND A NEW LIFE",
-                 "New York, NY", 40.6995, -74.0397, "sample_ellis.jpg", "admin"),
-                ("lincoln-memorial-dc", "Lincoln Memorial",
-                 "IN THIS TEMPLE, AS IN THE HEARTS OF THE PEOPLE FOR WHOM HE SAVED THE UNION, THE MEMORY OF ABRAHAM LINCOLN IS ENSHRINED FOREVER",
-                 "Washington, D.C.", 38.8893, -77.0502, "sample_lincoln.jpg", "admin"),
-                ("space-needle-seattle", "Space Needle",
+                ('alamo-san-antonio', 'The Alamo',
+                 'HERE ON THIS SITE IN 1836 THE DEFENDERS OF THE ALAMO MADE THEIR HEROIC STAND FOR TEXAS INDEPENDENCE',
+                 29.426, -98.4861, 'sample_alamo.jpg', 'admin'),
+                ('liberty-bell-philadelphia', 'Liberty Bell',
+                 'PROCLAIM LIBERTY THROUGHOUT ALL THE LAND UNTO ALL THE INHABITANTS THEREOF — Leviticus XXV:X',
+                 39.9496, -75.1503, 'sample_liberty.jpg', 'admin'),
+                ('golden-gate-dedication', 'Golden Gate Bridge',
+                 'THIS BRIDGE, A SYMBOL OF HUMAN INGENUITY AND PERSEVERANCE, WAS COMPLETED MAY 27, 1937',
+                 37.8199, -122.4783, 'sample_goldengate.jpg', 'admin'),
+                ('ellis-island-memorial', 'Ellis Island',
+                 'THROUGH THESE DOORS PASSED MORE THAN 12 MILLION IMMIGRANTS IN SEARCH OF FREEDOM AND A NEW LIFE',
+                 40.6995, -74.0397, 'sample_ellis.jpg', 'admin'),
+                ('lincoln-memorial-dc', 'Lincoln Memorial',
+                 'IN THIS TEMPLE, AS IN THE HEARTS OF THE PEOPLE FOR WHOM HE SAVED THE UNION, THE MEMORY OF ABRAHAM LINCOLN IS ENSHRINED FOREVER',
+                 38.8893, -77.0502, 'sample_lincoln.jpg', 'admin'),
+                ('space-needle-seattle', 'Space Needle',
                  "BUILT FOR THE 1962 WORLD'S FAIR, THIS STRUCTURE STANDS AS A SYMBOL OF SEATTLE'S SPIRIT AND INNOVATION",
-                 "Seattle, WA", 47.6205, -122.3493, "sample_needle.jpg", "admin"),
-                ("eiffel-tower-paris", "Eiffel Tower",
+                 47.6205, -122.3493, 'sample_needle.jpg', 'admin'),
+                ('eiffel-tower-paris', 'Eiffel Tower',
                  "CONSTRUITE DE 1887 À 1889 PAR GUSTAVE EIFFEL POUR L'EXPOSITION UNIVERSELLE",
-                 "Paris, France", 48.8584, 2.2945, "sample_eiffel.jpg", "admin"),
-                ("big-ben-london", "Big Ben",
+                 48.8584, 2.2945, 'sample_eiffel.jpg', 'admin'),
+                ('big-ben-london', 'Big Ben',
                  "THE CLOCK TOWER OF THE PALACE OF WESTMINSTER, RENAMED ELIZABETH TOWER IN 2012 TO MARK THE QUEEN'S DIAMOND JUBILEE",
-                 "London, UK", 51.5007, -0.1246, "sample_bigben.jpg", "admin"),
-                ("colosseum-rome", "Colosseum",
-                 "THE FLAVIAN AMPHITHEATRE, COMPLETED IN 80 AD UNDER EMPEROR TITUS, COULD HOLD UP TO 80,000 SPECTATORS",
-                 "Rome, Italy", 41.8902, 12.4922, "sample_colosseum.jpg", "admin"),
-                ("great-wall-china", "Great Wall of China",
-                 "BUILT AND REBUILT FROM THE 7TH CENTURY BC TO THE 16TH CENTURY AD TO PROTECT CHINA FROM INVASIONS",
-                 "Beijing, China", 40.4319, 116.5704, "sample_greatwall.jpg", "admin"),
-                ("sydney-opera-house", "Sydney Opera House",
-                 "DESIGNED BY JØRN UTZON AND OPENED BY QUEEN ELIZABETH II ON OCTOBER 20, 1973",
-                 "Sydney, Australia", -33.8568, 151.2153, "sample_sydney.jpg", "admin"),
-                ("machu-picchu-peru", "Machu Picchu",
-                 "BUILT IN THE 15TH CENTURY BY THE INCA EMPEROR PACHACUTI, REDISCOVERED BY HIRAM BINGHAM IN 1911",
-                 "Cusco, Peru", -13.1631, -72.5450, "sample_machu.jpg", "admin"),
-                # ── Page 2 ─────────────────────────────────────────────────────
-                ("taj-mahal-agra", "Taj Mahal",
-                 "BUILT BY EMPEROR SHAH JAHAN IN MEMORY OF HIS WIFE MUMTAZ MAHAL, COMPLETED IN 1643",
-                 "Agra, India", 27.1751, 78.0421, "sample_taj.jpg", "admin"),
-                ("statue-of-liberty", "Statue of Liberty",
-                 "GIVE ME YOUR TIRED, YOUR POOR, YOUR HUDDLED MASSES YEARNING TO BREATHE FREE",
-                 "New York Harbor, NY", 40.6892, -74.0445, "sample_liberty2.jpg", "admin"),
-                ("mount-rushmore", "Mount Rushmore",
-                 "DEDICATED 1941 — COMMEMORATING THE BIRTH, GROWTH, AND PRESERVATION OF THIS NATION",
-                 "Keystone, SD", 43.8791, -103.4591, "sample_rushmore.jpg", "admin"),
-                ("acropolis-athens", "Acropolis of Athens",
-                 "SYMBOL OF DEMOCRACY AND THE GOLDEN AGE OF CLASSICAL GREECE, CONSTRUCTION BEGAN UNDER PERICLES IN 447 BC",
-                 "Athens, Greece", 37.9715, 23.7257, "sample_acropolis.jpg", "admin"),
-                ("angkor-wat-cambodia", "Angkor Wat",
-                 "CONSTRUCTED IN THE EARLY 12TH CENTURY BY SURYAVARMAN II, THE LARGEST RELIGIOUS MONUMENT IN THE WORLD",
-                 "Siem Reap, Cambodia", 13.4125, 103.8670, "sample_angkor.jpg", "admin"),
-                ("christ-redeemer-rio", "Christ the Redeemer",
-                 "INAUGURATED ON OCTOBER 12, 1931, THIS ART DECO STATUE STANDS 30 METRES TALL ATOP CORCOVADO MOUNTAIN",
-                 "Rio de Janeiro, Brazil", -22.9519, -43.2105, "sample_christ.jpg", "admin"),
-                ("petra-jordan", "Petra",
-                 "THE ROSE-RED CITY HALF AS OLD AS TIME — CARVED INTO ROCK BY THE NABATAEAN KINGDOM FROM THE 4TH CENTURY BC",
-                 "Petra, Jordan", 30.3285, 35.4444, "sample_petra.jpg", "admin"),
-                ("chichen-itza-mexico", "Chichén Itzá",
-                 "EL CASTILLO WAS BUILT BY THE MAYA CIVILIZATION AS A TEMPLE TO KUKULCAN, CIRCA 800–900 AD",
-                 "Yucatán, Mexico", 20.6843, -88.5678, "sample_chichen.jpg", "admin"),
-                ("stonehenge-england", "Stonehenge",
+                 51.5007, -0.1246, 'sample_bigben.jpg', 'admin'),
+                ('colosseum-rome', 'Colosseum',
+                 'THE FLAVIAN AMPHITHEATRE, COMPLETED IN 80 AD UNDER EMPEROR TITUS, COULD HOLD UP TO 80,000 SPECTATORS',
+                 41.8902, 12.4922, 'sample_colosseum.jpg', 'admin'),
+                ('great-wall-china', 'Great Wall of China',
+                 'BUILT AND REBUILT FROM THE 7TH CENTURY BC TO THE 16TH CENTURY AD TO PROTECT CHINA FROM INVASIONS',
+                 40.4319, 116.5704, 'sample_greatwall.jpg', 'admin'),
+                ('sydney-opera-house', 'Sydney Opera House',
+                 'DESIGNED BY JØRN UTZON AND OPENED BY QUEEN ELIZABETH II ON OCTOBER 20, 1973',
+                 -33.8568, 151.2153, 'sample_sydney.jpg', 'admin'),
+                ('machu-picchu-peru', 'Machu Picchu',
+                 'BUILT IN THE 15TH CENTURY BY THE INCA EMPEROR PACHACUTI, REDISCOVERED BY HIRAM BINGHAM IN 1911',
+                 -13.1631, -72.545, 'sample_machu.jpg', 'admin'),
+                ('taj-mahal-agra', 'Taj Mahal',
+                 'BUILT BY EMPEROR SHAH JAHAN IN MEMORY OF HIS WIFE MUMTAZ MAHAL, COMPLETED IN 1643',
+                 27.1751, 78.0421, 'sample_taj.jpg', 'admin'),
+                ('statue-of-liberty', 'Statue of Liberty',
+                 'GIVE ME YOUR TIRED, YOUR POOR, YOUR HUDDLED MASSES YEARNING TO BREATHE FREE',
+                 40.6892, -74.0445, 'sample_liberty2.jpg', 'admin'),
+                ('mount-rushmore', 'Mount Rushmore',
+                 'DEDICATED 1941 — COMMEMORATING THE BIRTH, GROWTH, AND PRESERVATION OF THIS NATION',
+                 43.8791, -103.4591, 'sample_rushmore.jpg', 'admin'),
+                ('acropolis-athens', 'Acropolis of Athens',
+                 'SYMBOL OF DEMOCRACY AND THE GOLDEN AGE OF CLASSICAL GREECE, CONSTRUCTION BEGAN UNDER PERICLES IN 447 BC',
+                 37.9715, 23.7257, 'sample_acropolis.jpg', 'admin'),
+                ('angkor-wat-cambodia', 'Angkor Wat',
+                 'CONSTRUCTED IN THE EARLY 12TH CENTURY BY SURYAVARMAN II, THE LARGEST RELIGIOUS MONUMENT IN THE WORLD',
+                 13.4125, 103.867, 'sample_angkor.jpg', 'admin'),
+                ('christ-redeemer-rio', 'Christ the Redeemer',
+                 'INAUGURATED ON OCTOBER 12, 1931, THIS ART DECO STATUE STANDS 30 METRES TALL ATOP CORCOVADO MOUNTAIN',
+                 -22.9519, -43.2105, 'sample_christ.jpg', 'admin'),
+                ('petra-jordan', 'Petra',
+                 'THE ROSE-RED CITY HALF AS OLD AS TIME — CARVED INTO ROCK BY THE NABATAEAN KINGDOM FROM THE 4TH CENTURY BC',
+                 30.3285, 35.4444, 'sample_petra.jpg', 'admin'),
+                ('chichen-itza-mexico', 'Chichén Itzá',
+                 'EL CASTILLO WAS BUILT BY THE MAYA CIVILIZATION AS A TEMPLE TO KUKULCAN, CIRCA 800–900 AD',
+                 20.6843, -88.5678, 'sample_chichen.jpg', 'admin'),
+                ('stonehenge-england', 'Stonehenge',
                  "ERECTED BETWEEN 3000 AND 1500 BC, ITS PURPOSE REMAINS ONE OF HISTORY'S GREAT MYSTERIES",
-                 "Wiltshire, England", 51.1789, -1.8262, "sample_stonehenge.jpg", "admin"),
-                ("parthenon-athens", "The Parthenon",
-                 "DEDICATED TO ATHENA PARTHENOS, GODDESS OF WISDOM, COMPLETED IN 432 BC UNDER THE SUPERVISION OF PHIDIAS",
-                 "Athens, Greece", 37.9714, 23.7267, "sample_parthenon.jpg", "admin"),
-                ("versailles-palace", "Palace of Versailles",
-                 "TRANSFORMED BY LOUIS XIV INTO THE MOST SPLENDID ROYAL RESIDENCE IN EUROPE, SEAT OF FRENCH GOVERNMENT 1682–1789",
-                 "Versailles, France", 48.8049, 2.1204, "sample_versailles.jpg", "admin"),
-                ("alhambra-granada", "The Alhambra",
-                 "BUILT PRIMARILY IN THE 13TH AND 14TH CENTURIES, A MASTERPIECE OF MOORISH ARCHITECTURE AND ISLAMIC ART",
-                 "Granada, Spain", 37.1760, -3.5881, "sample_alhambra.jpg", "admin"),
-                # ── Page 3 ─────────────────────────────────────────────────────
-                ("sagrada-familia-barcelona", "Sagrada Família",
-                 "DESIGNED BY ANTONI GAUDÍ, CONSTRUCTION BEGAN IN 1882 AND CONTINUES TO THIS DAY — A TESTAMENT TO HUMAN DEVOTION",
-                 "Barcelona, Spain", 41.4036, 2.1744, "sample_sagrada.jpg", "admin"),
-                ("tower-of-london", "Tower of London",
-                 "FOUNDED IN 1066 BY WILLIAM THE CONQUEROR, SERVING AS ROYAL PALACE, FORTRESS, PRISON, AND TREASURY",
-                 "London, UK", 51.5081, -0.0759, "sample_tower.jpg", "admin"),
-                ("forbidden-city-beijing", "The Forbidden City",
-                 "BUILT BETWEEN 1406 AND 1420, SERVED AS THE HOME OF 24 EMPERORS OF THE MING AND QING DYNASTIES",
-                 "Beijing, China", 39.9163, 116.3972, "sample_forbidden.jpg", "admin"),
-                ("notre-dame-paris", "Notre-Dame de Paris",
-                 "CONSTRUCTION BEGAN IN 1163 UNDER BISHOP MAURICE DE SULLY. ONE OF THE FINEST EXAMPLES OF FRENCH GOTHIC ARCHITECTURE",
-                 "Paris, France", 48.8530, 2.3499, "sample_notredame.jpg", "admin"),
-                ("hagia-sophia-istanbul", "Hagia Sophia",
-                 "COMPLETED IN 537 AD UNDER EMPEROR JUSTINIAN I. CATHEDRAL, MOSQUE, AND NOW MUSEUM — WITNESS TO 1500 YEARS OF HISTORY",
-                 "Istanbul, Turkey", 41.0086, 28.9802, "sample_hagia.jpg", "admin"),
-                ("st-peters-vatican", "St. Peter's Basilica",
-                 "THE LARGEST CHURCH IN THE WORLD, BUILT OVER THE TOMB OF SAINT PETER. MICHELANGELO DESIGNED ITS ICONIC DOME IN 1547",
-                 "Vatican City", 41.9022, 12.4539, "sample_stpeters.jpg", "admin"),
-                ("westminster-abbey", "Westminster Abbey",
-                 "FOUNDED IN 960 AD, SITE OF ROYAL CORONATIONS SINCE 1066 AND RESTING PLACE OF MONARCHS, POETS, AND SCIENTISTS",
-                 "London, UK", 51.4994, -0.1273, "sample_westminster.jpg", "admin"),
-                ("mont-saint-michel", "Mont Saint-Michel",
-                 "THE ABBEY WAS FOUNDED IN 708 AD BY BISHOP AUBERT OF AVRANCHES FOLLOWING A VISION OF THE ARCHANGEL MICHAEL",
-                 "Normandy, France", 48.6361, -1.5115, "sample_montmichel.jpg", "admin"),
-                ("kremlin-moscow", "The Moscow Kremlin",
-                 "THE ORIGINAL WOODEN KREMLIN WAS BUILT IN 1156. THE PRESENT WALLS DATE FROM 1485–1495 UNDER IVAN THE GREAT",
-                 "Moscow, Russia", 55.7520, 37.6175, "sample_kremlin.jpg", "admin"),
-                ("empire-state-building", "Empire State Building",
+                 51.1789, -1.8262, 'sample_stonehenge.jpg', 'admin'),
+                ('parthenon-athens', 'The Parthenon',
+                 'DEDICATED TO ATHENA PARTHENOS, GODDESS OF WISDOM, COMPLETED IN 432 BC UNDER THE SUPERVISION OF PHIDIAS',
+                 37.9714, 23.7267, 'sample_parthenon.jpg', 'admin'),
+                ('versailles-palace', 'Palace of Versailles',
+                 'TRANSFORMED BY LOUIS XIV INTO THE MOST SPLENDID ROYAL RESIDENCE IN EUROPE, SEAT OF FRENCH GOVERNMENT 1682–1789',
+                 48.8049, 2.1204, 'sample_versailles.jpg', 'admin'),
+                ('alhambra-granada', 'The Alhambra',
+                 'BUILT PRIMARILY IN THE 13TH AND 14TH CENTURIES, A MASTERPIECE OF MOORISH ARCHITECTURE AND ISLAMIC ART',
+                 37.176, -3.5881, 'sample_alhambra.jpg', 'admin'),
+                ('sagrada-familia-barcelona', 'Sagrada Família',
+                 'DESIGNED BY ANTONI GAUDÍ, CONSTRUCTION BEGAN IN 1882 AND CONTINUES TO THIS DAY — A TESTAMENT TO HUMAN DEVOTION',
+                 41.4036, 2.1744, 'sample_sagrada.jpg', 'admin'),
+                ('tower-of-london', 'Tower of London',
+                 'FOUNDED IN 1066 BY WILLIAM THE CONQUEROR, SERVING AS ROYAL PALACE, FORTRESS, PRISON, AND TREASURY',
+                 51.5081, -0.0759, 'sample_tower.jpg', 'admin'),
+                ('forbidden-city-beijing', 'The Forbidden City',
+                 'BUILT BETWEEN 1406 AND 1420, SERVED AS THE HOME OF 24 EMPERORS OF THE MING AND QING DYNASTIES',
+                 39.9163, 116.3972, 'sample_forbidden.jpg', 'admin'),
+                ('notre-dame-paris', 'Notre-Dame de Paris',
+                 'CONSTRUCTION BEGAN IN 1163 UNDER BISHOP MAURICE DE SULLY. ONE OF THE FINEST EXAMPLES OF FRENCH GOTHIC ARCHITECTURE',
+                 48.853, 2.3499, 'sample_notredame.jpg', 'admin'),
+                ('hagia-sophia-istanbul', 'Hagia Sophia',
+                 'COMPLETED IN 537 AD UNDER EMPEROR JUSTINIAN I. CATHEDRAL, MOSQUE, AND NOW MUSEUM — WITNESS TO 1500 YEARS OF HISTORY',
+                 41.0086, 28.9802, 'sample_hagia.jpg', 'admin'),
+                ('st-peters-vatican', "St. Peter's Basilica",
+                 'THE LARGEST CHURCH IN THE WORLD, BUILT OVER THE TOMB OF SAINT PETER. MICHELANGELO DESIGNED ITS ICONIC DOME IN 1547',
+                 41.9022, 12.4539, 'sample_stpeters.jpg', 'admin'),
+                ('westminster-abbey', 'Westminster Abbey',
+                 'FOUNDED IN 960 AD, SITE OF ROYAL CORONATIONS SINCE 1066 AND RESTING PLACE OF MONARCHS, POETS, AND SCIENTISTS',
+                 51.4994, -0.1273, 'sample_westminster.jpg', 'admin'),
+                ('mont-saint-michel', 'Mont Saint-Michel',
+                 'THE ABBEY WAS FOUNDED IN 708 AD BY BISHOP AUBERT OF AVRANCHES FOLLOWING A VISION OF THE ARCHANGEL MICHAEL',
+                 48.6361, -1.5115, 'sample_montmichel.jpg', 'admin'),
+                ('kremlin-moscow', 'The Moscow Kremlin',
+                 'THE ORIGINAL WOODEN KREMLIN WAS BUILT IN 1156. THE PRESENT WALLS DATE FROM 1485–1495 UNDER IVAN THE GREAT',
+                 55.752, 37.6175, 'sample_kremlin.jpg', 'admin'),
+                ('empire-state-building', 'Empire State Building',
                  "OPENED MAY 1, 1931. BUILT IN JUST 410 DAYS, IT STOOD AS THE WORLD'S TALLEST BUILDING FOR 40 YEARS",
-                 "New York, NY", 40.7484, -73.9857, "sample_empire.jpg", "admin"),
-                ("burj-khalifa-dubai", "Burj Khalifa",
-                 "OPENED JANUARY 4, 2010. AT 828 METRES, THE TALLEST STRUCTURE EVER BUILT BY HUMAN HANDS",
-                 "Dubai, UAE", 25.1972, 55.2744, "sample_burj.jpg", "admin"),
-                ("hoover-dam", "Hoover Dam",
-                 "DEDICATED SEPTEMBER 30, 1935 BY PRESIDENT FRANKLIN D. ROOSEVELT. BUILT BY 21,000 WORKERS IN THE HEART OF THE MOJAVE",
-                 "Nevada/Arizona, USA", 36.0160, -114.7377, "sample_hoover.jpg", "admin"),
+                 40.7484, -73.9857, 'sample_empire.jpg', 'admin'),
+                ('burj-khalifa-dubai', 'Burj Khalifa',
+                 'OPENED JANUARY 4, 2010. AT 828 METRES, THE TALLEST STRUCTURE EVER BUILT BY HUMAN HANDS',
+                 25.1972, 55.2744, 'sample_burj.jpg', 'admin'),
+                ('hoover-dam', 'Hoover Dam',
+                 'DEDICATED SEPTEMBER 30, 1935 BY PRESIDENT FRANKLIN D. ROOSEVELT. BUILT BY 21,000 WORKERS IN THE HEART OF THE MOJAVE',
+                 36.016, -114.7377, 'sample_hoover.jpg', 'admin')
+
             ]
             now = datetime.utcnow().isoformat()
             db.executemany(
                 "INSERT OR IGNORE INTO plaques "
-                "(slug,title,description,location,latitude,longitude,"
+                "(slug,title,description,latitude,longitude,"
                 "image_file,submitted_by,approved,created_at)"
-                " VALUES (?,?,?,?,?,?,?,?,1,?)",
+                " VALUES (?,?,?,?,?,?,?,1,?)",
                 [(*row, now) for row in seed_data]
             )
     db.close()
 
 
-def plaque_to_dict(row):
+def plaque_to_dict(row: sqlite3.Row) -> dict:
     d = dict(row)
     img = d["image_file"]
     d["image_url"] = f"/uploads/{img[:2]}/{img}" if (
@@ -335,7 +304,7 @@ def plaque_to_dict(row):
 
 
 # ── Image helpers ──────────────────────────────────────────────────────────────
-def get_images_for_plaque(db, plaque_id):
+def get_images_for_plaque(db: sqlite3.Connection, plaque_id: int) -> list[dict]:
     """Return list of image dicts for a plaque, primary first."""
     rows = db.execute(
         "SELECT * FROM plaque_images WHERE plaque_id=? ORDER BY is_primary DESC, sort_order ASC, id ASC",
@@ -344,13 +313,13 @@ def get_images_for_plaque(db, plaque_id):
     return [dict(r) for r in rows]
 
 
-def image_url(filename):
+def image_url(filename: str) -> str:
     return f"/uploads/{filename[:2]}/{filename}" if (
         len(filename) >= 2 and all(c in "0123456789abcdef" for c in filename[:2])
     ) else f"/uploads/{filename}"
 
 
-def thumb_url(filename):
+def thumb_url(filename: Optional[str]) -> Optional[str]:
     if not filename:
         return None
     return f"/thumbs/{filename[:2]}/{filename}" if (
@@ -358,7 +327,14 @@ def thumb_url(filename):
     ) else f"/thumbs/{filename}"
 
 
-def add_image_to_plaque(db, plaque_id, file_obj, ext, is_primary=False, sort_order=0):
+def add_image_to_plaque(
+    db: sqlite3.Connection,
+    plaque_id: int,
+    file_obj: io.IOBase,
+    ext: str,
+    is_primary: bool = False,
+    sort_order: int = 0,
+) -> dict:
     """Save a file, create thumbnail, insert into plaque_images.
 
     Returns a dict with keys: image_file, thumb_file, duplicate (bool).
@@ -398,7 +374,7 @@ def add_image_to_plaque(db, plaque_id, file_obj, ext, is_primary=False, sort_ord
     return {"image_file": filename, "thumb_file": thumb_filename if thumb_ok else None, "duplicate": False}
 
 
-def sync_primary_image(db, plaque_id):
+def sync_primary_image(db: sqlite3.Connection, plaque_id: int) -> None:
     """Update plaques.image_file to match the current primary image in plaque_images."""
     primary = db.execute(
         "SELECT image_file, thumb_file FROM plaque_images WHERE plaque_id=? AND is_primary=1 LIMIT 1",
@@ -418,7 +394,7 @@ def sync_primary_image(db, plaque_id):
 
 
 # ── Tag helpers ────────────────────────────────────────────────────────────────
-def get_tags_for_plaque(db, plaque_id):
+def get_tags_for_plaque(db: sqlite3.Connection, plaque_id: int) -> list[str]:
     """Return list of tag name strings for a plaque."""
     rows = db.execute(
         "SELECT t.name FROM tags t "
@@ -429,7 +405,7 @@ def get_tags_for_plaque(db, plaque_id):
     return [r["name"] for r in rows]
 
 
-def set_tags_for_plaque(db, plaque_id, tag_names):
+def set_tags_for_plaque(db: sqlite3.Connection, plaque_id: int, tag_names: list[str]) -> None:
     """Replace all tags for a plaque with the given list of tag name strings."""
     db.execute("DELETE FROM plaque_tags WHERE plaque_id=?", (plaque_id,))
     for name in tag_names:
@@ -444,13 +420,13 @@ def set_tags_for_plaque(db, plaque_id, tag_names):
         )
 
 
-def parse_tags(raw):
+def parse_tags(raw: str) -> list[str]:
     """Parse a comma-separated tag string into a cleaned list."""
     return [t.strip().lower() for t in raw.split(",") if t.strip()]
 
 
 # ── Admin helpers ──────────────────────────────────────────────────────────────
-def is_admin():
+def is_admin() -> bool:
     return session.get("admin") is True
 
 
@@ -518,7 +494,6 @@ def submit():
     errors = []
     title        = request.form.get("title", "").strip()
     description  = request.form.get("description", "").strip()
-    location     = request.form.get("location", "").strip()
     submitted_by = request.form.get("submitted_by", "anonymous").strip() or "anonymous"
 
     try:
@@ -579,10 +554,10 @@ def submit():
         primary = saved_images[0]
         db.execute(
             "INSERT INTO plaques "
-            "(slug,title,description,location,latitude,longitude,"
+            "(slug,title,description,latitude,longitude,"
             "image_file,thumb_file,submitted_by,approved,created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,?,0,?)",
-            (slug, title, description, location, lat, lng,
+            " VALUES (?,?,?,?,?,?,?,?,0,?)",
+            (slug, title, description, lat, lng,
              primary["filename"], primary["thumb"],
              submitted_by, datetime.utcnow().isoformat())
         )
@@ -761,7 +736,6 @@ def admin_edit(plaque_id):
     errors = []
     title       = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
-    location    = request.form.get("location", "").strip()
     submitted_by= request.form.get("submitted_by", "").strip()
     approved    = 1 if request.form.get("approved") else 0
 
@@ -815,9 +789,9 @@ def admin_edit(plaque_id):
         if set_featured:
             db.execute("UPDATE plaques SET is_featured=0")
         db.execute(
-            "UPDATE plaques SET title=?, description=?, location=?, latitude=?, longitude=?,"
+            "UPDATE plaques SET title=?, description=?, latitude=?, longitude=?,"
             " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=? WHERE id=?",
-            (title, description, location, lat, lng,
+            (title, description, lat, lng,
              submitted_by, approved, 1 if set_featured else 0,
              new_img_file, new_thumb_file, plaque_id)
         )
@@ -885,7 +859,7 @@ def api_plaques_geo():
     """Lean GeoJSON for map pins — omits image URLs to minimise payload."""
     with get_db() as db:
         rows = db.execute(
-            "SELECT id, slug, title, location, latitude, longitude"
+            "SELECT id, slug, title, latitude, longitude"
             " FROM plaques WHERE approved=1 ORDER BY created_at DESC"
         ).fetchall()
     features = [
@@ -896,7 +870,6 @@ def api_plaques_geo():
                 "id": r["id"],
                 "slug": r["slug"],
                 "title": r["title"],
-                "location": r["location"],
             },
         }
         for r in rows
@@ -931,9 +904,9 @@ def api_search():
     with get_db() as db:
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1 "
-            "AND (title LIKE ? OR description LIKE ? OR location LIKE ?)"
+            "AND (title LIKE ? OR description LIKE ?)"
             " ORDER BY created_at DESC LIMIT 30",
-            (like, like, like)
+            (like, like)
         ).fetchall()
     return jsonify([plaque_to_dict(r) for r in rows])
 
@@ -1076,7 +1049,7 @@ def thumb_file(filename):
     return send_from_directory(THUMB_DIR, filename)
 
 
-def _placeholder_jpeg(filename):
+def _placeholder_jpeg(filename: str) -> bytes:
     """Return a small colored JPEG placeholder — works in all browsers as <img> src."""
     palette = [
         (139, 115, 85),

@@ -38,9 +38,6 @@
     </div>
     <div class="detail-info">
       <h1>{{ plaque.title }}</h1>
-      {% if plaque.location %}
-      <p class="detail-location"><span>📍</span> {{ plaque.location }}</p>
-      {% endif %}
       {% if plaque.description %}
       <div class="plaque-text-box">{{ plaque.description }}</div>
       {% endif %}

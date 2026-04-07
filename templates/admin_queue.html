@@ -36,7 +36,6 @@
       <div class="qc-body">
         <p class="qc-title">{{ p.title }}</p>
         <div class="qc-meta">
-          {% if p.location %}📍 {{ p.location }}<br>{% endif %}
           🌐 {{ "%.4f"|format(p.latitude) }}, {{ "%.4f"|format(p.longitude) }}<br>
           👤 {{ p.submitted_by or 'anonymous' }}<br>
           🕐 {{ p.created_at[:16].replace('T', ' ') }}

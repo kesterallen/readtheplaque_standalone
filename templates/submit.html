@@ -33,10 +33,6 @@
       <textarea id="description" placeholder="Transcribe the text from the plaque…"></textarea>
     </div>
     <div class="form-group">
-      <label for="location">Location (City, Country)</label>
-      <input type="text" id="location" placeholder="e.g. Boston, MA, USA">
-    </div>
-    <div class="form-group">
       <label for="submittedBy">Your Name (optional)</label>
       <input type="text" id="submittedBy" placeholder="Anonymous">
     </div>
@@ -169,7 +165,6 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   Array.from(fileInput.files).forEach(f => fd.append('images', f));
   fd.append('title',        document.getElementById('title').value.trim());
   fd.append('description',  document.getElementById('description').value.trim());
-  fd.append('location',     document.getElementById('location').value.trim());
   fd.append('submitted_by', document.getElementById('submittedBy').value.trim());
   fd.append('tags', document.getElementById('tags').value.trim());
   fd.append('latitude',     document.getElementById('latitude').value.trim());

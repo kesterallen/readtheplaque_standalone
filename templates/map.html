@@ -85,7 +85,6 @@ document.addEventListener("DOMContentLoaded", function () {
           '<div class="popup-body" style="min-width:220px">' +
           '<img class="map-popup-img" style="width:100%;height:140px;object-fit:cover;display:block" alt="">' +
           '<p class="popup-title">' + esc(p.title) + "</p>" +
-          (p.location ? '<p class="popup-loc">📍 ' + esc(p.location) + "</p>" : "") +
           '<a class="popup-link" href="/plaque/' + esc(p.slug) + '">Read full plaque →</a>' +
           "</div>",
           { maxWidth: 260, sanitizeHtml: false }
@@ -140,7 +139,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 '<div class="gsr-item" data-lat="' + p.latitude + '" data-lng="' + p.longitude + '">' +
                 '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy" alt="">' +
                 '<div class="gsr-info"><strong>' + esc(p.title) + "</strong>" +
-                (p.location ? "<span>📍 " + esc(p.location) + "</span>" : "") +
                 "</div></div>"
               );
             })

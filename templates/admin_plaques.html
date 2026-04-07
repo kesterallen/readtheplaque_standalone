@@ -23,7 +23,6 @@
       <tr>
         <th></th>
         <th>Title</th>
-        <th>Location</th>
         <th>Status</th>
         <th>Submitted by</th>
         <th>Date</th>
@@ -43,7 +42,6 @@
             {% endif %}
           </div>
         </td>
-        <td class="ap-loc">{{ p.location or '—' }}</td>
         <td>
           {% if p.approved %}
           <span class="badge badge-approved">Approved</span>
