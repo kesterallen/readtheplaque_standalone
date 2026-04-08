@@ -40,22 +40,16 @@ seed_data = [
     ('burj-khalifa-dubai', 'Burj Khalifa', 'OPENED JANUARY 4, 2010. AT 828 METRES, THE TALLEST STRUCTURE EVER BUILT BY HUMAN HANDS', 25.1972, 55.2744, 'sample_burj.jpg', 'admin'),
     ('hoover-dam', 'Hoover Dam', 'DEDICATED SEPTEMBER 30, 1935 BY PRESIDENT FRANKLIN D. ROOSEVELT. BUILT BY 21,000 WORKERS IN THE HEART OF THE MOJAVE', 36.016, -114.7377, 'sample_hoover.jpg', 'admin'),
 ]
-now = datetime.datetime.now()
 
+now = datetime.datetime.now()
+url = "http://127.0.0.1:5000/submit"
+fields = ("slug", "title", "description", "latitude", "longitude")
 image_filename = "/home/ciae/Downloads/Snowman-ENG.jpg"
+
 for i in range(500):
-    if i % 20 == 0:
+    if i % 50 == 0:
         print(f"{i} / 500")
     for seed in seed_data:
-        data = dict(
-            slug=seed[0],
-            title=seed[1],
-            description=seed[2],
-            latitude=seed[3],
-            longitude=seed[4],
-        )
-
-        url = "http://127.0.0.1:5000/submit"
         with open(image_filename, "rb") as file:
             files = {"images": (image_filename, file)}
-            response = requests.post(url, data=data, files=files)
+            response = requests.post(url, data=dict(zip(fields, seed)), files=files)
