@@ -1,6 +1,8 @@
 static/vendor
 static/thumbs
 static/uploads
+thumbs
+uploads
 *un~
 plaques.db*
 
