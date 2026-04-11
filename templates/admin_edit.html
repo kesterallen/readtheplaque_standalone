@@ -49,7 +49,7 @@
         <input type="text" id="tags" name="tags"
                value="{{ plaque.tags | join(', ') if plaque.tags else '' }}"
                placeholder="e.g. history, war, boston — comma separated">
-        <p style="font-size:12px;color:var(--text-muted);margin-top:5px">Separate multiple tags with commas</p>
+        <p class="field-hint">Separate multiple tags with commas</p>
       </div>
 
       <div class="toggle-row">
@@ -57,9 +57,9 @@
         <label for="approved">Approved (visible on map and homepage)</label>
       </div>
 
-      <div class="toggle-row" style="margin-top:12px">
+      <div class="toggle-row toggle-row--spaced">
         <input type="checkbox" id="set_featured" name="set_featured" {% if plaque.is_featured %}checked{% endif %}>
-        <label for="set_featured">Featured plaque <span style="font-size:12px;color:var(--text-muted)">(replaces current featured plaque on homepage)</span></label>
+        <label for="set_featured">Featured plaque <span class="label-hint">(replaces current featured plaque on homepage)</span></label>
       </div>
     </div>
 
@@ -83,22 +83,22 @@
       </div>
 
       <!-- Add more images -->
-      <div class="drop-zone" id="dropZone" style="margin-top:12px">
+      <div class="drop-zone" id="dropZone">
         <input type="file" id="newImages" accept="image/*" multiple>
         <div class="dz-text">Add more images — drop here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB each</small></div>
       </div>
-      <div id="newImgPreviews" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px"></div>
+      <div id="newImgPreviews" class="img-preview-wrap"></div>
     </div>
 
     <div class="form-section">
       <h2>📍 Location</h2>
       <div id="coordPicker"></div>
       <div class="coord-row">
-        <div class="form-group" style="margin:0">
+        <div class="form-group form-group--tight">
           <label for="latitude">Latitude</label>
           <input type="text" id="latitude" name="latitude" value="{{ plaque.latitude }}">
         </div>
-        <div class="form-group" style="margin:0">
+        <div class="form-group form-group--tight">
           <label for="longitude">Longitude</label>
           <input type="text" id="longitude" name="longitude" value="{{ plaque.longitude }}">
         </div>

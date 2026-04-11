@@ -10,6 +10,7 @@ Tier 3: SQLite database (plaques.db)
 
 import bleach
 import hashlib
+import random
 import io
 import math
 import os
@@ -45,7 +46,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
 app.config["UPLOAD_FOLDER"]      = UPLOAD_DIR
-app.json.compact = False
+app.json.compact = True
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(THUMB_DIR,  exist_ok=True)
@@ -502,6 +503,27 @@ def submit():
     return jsonify(resp)
 
 
+@app.route("/random")
+def random_plaque() -> str:
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT slug FROM plaques WHERE approved=1"
+        ).fetchall()
+        #row = db.execute("SELECT * FROM plaques where id > (ABS(RANDOM()) % (SELECT max(id) FROM plaques)) limit 1").fetchone()
+    if not rows:
+        abort(404)
+    #if not row:
+    #    abort(404)
+    slug = random.choice(rows)["slug"]
+    #slug = row["slug"]
+    return redirect(url_for("plaque_detail", slug=slug))
+
+
+@app.route("/about")
+def about() -> str:
+    return render_template("about.html")
+
+
 @app.route("/plaque/<slug>")
 def plaque_detail(slug):
     with get_db() as db:
@@ -578,20 +600,58 @@ def admin_queue():
 def admin_plaques():
     if not is_admin():
         return redirect(url_for("admin_login"))
+
     page     = max(1, request.args.get("page", 1, type=int))
     per_page = 24
     offset   = (page - 1) * per_page
-    with get_db() as db:
-        rows  = db.execute(
-            "SELECT * FROM plaques ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (per_page, offset)
-        ).fetchall()
-        total = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
-    total_pages = max(1, -(-total // per_page))
-    return render_template("admin_plaques.html",
-                           plaques=[plaque_to_dict(r) for r in rows],
-                           page=page, total_pages=total_pages, total=total)
 
+    # ── Filtering ──────────────────────────────────────────────────────────────
+    status = request.args.get("status", "all")   # all | approved | pending
+    q      = request.args.get("q", "").strip()   # title search
+
+    where_clauses: list[str] = []
+    params: list  = []
+
+    if status == "approved":
+        where_clauses.append("approved = 1")
+    elif status == "pending":
+        where_clauses.append("approved = 0")
+
+    if q:
+        where_clauses.append("title LIKE ?")
+        params.append(f"%{q}%")
+
+    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+    # ── Sorting ────────────────────────────────────────────────────────────────
+    sort_col = request.args.get("sort", "created_at")
+    sort_dir = request.args.get("dir", "desc")
+
+    # Whitelist to prevent SQL injection
+    allowed_cols = {"title", "created_at", "submitted_by", "approved"}
+    if sort_col not in allowed_cols:
+        sort_col = "created_at"
+    if sort_dir not in ("asc", "desc"):
+        sort_dir = "desc"
+
+    order_sql = f"ORDER BY {sort_col} {sort_dir.upper()}"
+
+    with get_db() as db:
+        rows = db.execute(
+            f"SELECT * FROM plaques {where_sql} {order_sql} LIMIT ? OFFSET ?",
+            (*params, per_page, offset),
+        ).fetchall()
+        total = db.execute(
+            f"SELECT COUNT(*) FROM plaques {where_sql}", params
+        ).fetchone()[0]
+
+    total_pages = max(1, -(-total // per_page))
+    return render_template(
+        "admin_plaques.html",
+        plaques=[plaque_to_dict(r) for r in rows],
+        page=page, total_pages=total_pages, total=total,
+        status=status, q=q, sort=sort_col, dir=sort_dir,
+    )
 
 # TODO: remove this
 @app.route("/admin/approve/all", methods=["GET", "POST"])

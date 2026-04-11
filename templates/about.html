@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}About — PlaqueWorld{% endblock %}
+
+{% block content %}
+<div class="about-page">
+  <div class="about-header">
+    <h1>About PlaqueWorld</h1>
+  </div>
+
+  <div class="about-body">
+    <p class="about-lead">
+      PlaqueWorld is a community-driven archive of the world's historical plaques — the small
+      bronze, stone, and ceramic markers that quietly tell the stories of the places we walk past
+      every day.
+    </p>
+
+    <h2>What is a plaque?</h2>
+    <p>
+      Historical plaques mark buildings, streets, and landmarks where something significant
+      happened — a birth, a battle, a discovery, a first. They exist in every city and village,
+      and most people walk past them without a second glance. PlaqueWorld exists to change that.
+    </p>
+
+    <h2>How it works</h2>
+    <p>
+      Anyone can <a href="/submit">submit a plaque</a> they've found. Upload a photo, drop a pin
+      on the map, and add a description. Submissions are reviewed before appearing on the site.
+      Once approved, each plaque gets its own page and appears on the
+      <a href="/map">Big Map</a>.
+    </p>
+
+    <h2>Explore</h2>
+    <ul>
+      <li><a href="/map">Big Map</a> — browse every plaque on an interactive world map</li>
+      <li><a href="/random">Random Plaque</a> — discover something unexpected</li>
+      <li><a href="/submit">Submit a Plaque</a> — add one you've found</li>
+    </ul>
+
+    <h2>Contact</h2>
+    <p>
+      Found a bug, have a suggestion, or want to get in touch? Open an issue or pull request on
+      <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>.
+    </p>
+  </div>
+</div>
+{% endblock %}

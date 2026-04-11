@@ -43,13 +43,15 @@ seed_data = [
 
 now = datetime.datetime.now()
 url = "http://127.0.0.1:5000/submit"
+approve_url = "http://127.0.0.1:5000/admin/approve/all"
 fields = ("slug", "title", "description", "latitude", "longitude")
-image_filename = "/home/ciae/Downloads/Snowman-ENG.jpg"
+image_filename = "/mnt/c/Users/CIAE/OneDrive - Novonesis/Pictures/Screenshots/Screenshot 2025-05-08 142354.png"
 
-for i in range(500):
-    if i % 50 == 0:
-        print(f"{i} / 500")
+num_dups = 3
+for i in range(num_dups):
+    print(f"{i} / {num_dups}")
     for seed in seed_data:
         with open(image_filename, "rb") as file:
             files = {"images": (image_filename, file)}
             response = requests.post(url, data=dict(zip(fields, seed)), files=files)
+response = requests.get(approve_url)

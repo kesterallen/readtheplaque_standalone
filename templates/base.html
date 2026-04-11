@@ -4,28 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{% block title %}PlaqueWorld{% endblock %}</title>
-<script>
-  // Load fonts: prefer local vendor copy, fall back to Google Fonts CDN
-  (function() {
-    var vendorFonts = '{{ url_for("static", filename="vendor/fonts.css") }}';
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.onerror = function() {
-      // vendor file not present — try Google Fonts CDN
-      var l2 = document.createElement('link');
-      l2.rel = 'stylesheet';
-      l2.href = 'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Serif+4:opsz,wght@8..60,300;8..60,400;8..60,600&display=swap';
-      document.head.appendChild(l2);
-    };
-    link.href = vendorFonts;
-    document.head.appendChild(link);
-  })();
-</script>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 {% block extra_head %}{% endblock %}
 </head>
-<body{% if self.body_class() %} class="{{ self.body_class() }}"{% endif %}>
-{% block body_class %}{% endblock %}
+{% block body_class %}<body>{% endblock %}
 
 <header class="site-header">
   <div class="header-inner">
@@ -36,6 +18,8 @@
     <nav class="nav">
       <a href="/" class="nav-link">Home</a>
       <a href="/map" class="nav-link">Big Map</a>
+      <a href="/random" class="nav-link">Random</a>
+      <a href="/about" class="nav-link">About</a>
       <a href="/submit" class="nav-link nav-link--submit">+ Submit Plaque</a>
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
@@ -45,6 +29,8 @@
 <div class="mobile-nav" id="mobileNav">
   <a href="/" class="mobile-nav-link">Home</a>
   <a href="/map" class="mobile-nav-link">Big Map</a>
+  <a href="/random" class="mobile-nav-link">Random</a>
+  <a href="/about" class="mobile-nav-link">About</a>
   <a href="/submit" class="mobile-nav-link">Submit Plaque</a>
 </div>
 
@@ -58,6 +44,8 @@
     <p class="footer-links">
       <a href="/">Home</a> ·
       <a href="/map">Map</a> ·
+      <a href="/random">Random</a> ·
+      <a href="/about">About</a> ·
       <a href="/submit">Submit</a>
     </p>
   </div>

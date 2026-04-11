@@ -30,9 +30,9 @@
   <div class="search-box">
     <span class="search-icon">🔍</span>
     <input type="text" id="searchInput" placeholder="Search {{ total }} plaques…" autocomplete="off">
-    <button id="searchClear" class="search-clear" aria-label="Clear" style="display:none">✕</button>
+    <button id="searchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
   </div>
-  <div id="searchResults" class="search-results-overlay" style="display:none"></div>
+  <div id="searchResults" class="search-results-overlay is-hidden"></div>
 </section>
 
 <!-- Mini map -->
@@ -103,13 +103,13 @@ let timer;
 
 input.addEventListener('input', () => {
   const q = input.value.trim();
-  clear.style.display = q ? 'block' : 'none';
+  clear.classList.toggle('is-hidden', !q);
   clearTimeout(timer);
-  if (!q) { overlay.style.display = 'none'; return; }
+  if (!q) { overlay.classList.add('is-hidden'); return; }
   timer = setTimeout(() => doSearch(q), 300);
 });
 clear.addEventListener('click', () => {
-  input.value = ''; clear.style.display = 'none'; overlay.style.display = 'none';
+  input.value = ''; clear.classList.add('is-hidden'); overlay.style.display = 'none';
 });
 
 async function doSearch(q) {
@@ -125,14 +125,14 @@ async function doSearch(q) {
         </div>
       </a>`).join('');
   }
-  overlay.style.display = 'block';
+  overlay.classList.remove('is-hidden');
 }
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 document.addEventListener('click', e => {
-  if (!e.target.closest('.search-section')) overlay.style.display = 'none';
+  if (!e.target.closest('.search-section')) overlay.classList.add('is-hidden');
 });
 </script>
 

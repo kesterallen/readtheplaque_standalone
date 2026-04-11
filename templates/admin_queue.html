@@ -11,7 +11,7 @@
       <h1>Approval Queue</h1>
       <p class="meta">{{ pending|length }} plaque{{ 's' if pending|length != 1 }} awaiting review</p>
     </div>
-    <div style="display:flex;gap:16px;align-items:center">
+    <div class="queue-header-links">
       <a href="/" class="logout-link">← Back to site</a>
       <a href="/admin/plaques" class="logout-link">All plaques</a>
       <a href="/admin/logout" class="logout-link">Sign out</a>
