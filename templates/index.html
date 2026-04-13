@@ -112,6 +112,13 @@ clear.addEventListener('click', () => {
   input.value = ''; clear.classList.add('is-hidden'); overlay.classList.add('is-hidden');
 });
 
+function positionOverlay() {
+  const box = document.querySelector('.search-box').getBoundingClientRect();
+  overlay.style.top  = (box.bottom + 1) + 'px';
+  overlay.style.left = box.left + 'px';
+  overlay.style.width = box.width + 'px';
+}
+
 async function doSearch(q) {
   const data = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
   if (!data.length) {
@@ -125,8 +132,16 @@ async function doSearch(q) {
         </div>
       </a>`).join('');
   }
+  positionOverlay();
   overlay.classList.remove('is-hidden');
 }
+
+window.addEventListener('resize', () => {
+  if (!overlay.classList.contains('is-hidden')) positionOverlay();
+});
+window.addEventListener('scroll', () => {
+  if (!overlay.classList.contains('is-hidden')) positionOverlay();
+});
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

@@ -219,6 +219,8 @@ img { max-width: 100%; }
   margin: 24px auto 0;
   padding: 0 20px;
   position: relative;
+  z-index: 500;
+  isolation: isolate;
 }
 .search-box {
   display: flex; align-items: center;
@@ -242,10 +244,10 @@ img { max-width: 100%; }
 }
 .search-clear:hover { color: var(--text); }
 .search-results-overlay {
-  position: absolute; top: calc(100% + 1px); left: 20px; right: 20px;
+  position: fixed;
   background: var(--surface); border: 1px solid var(--border);
   box-shadow: 0 4px 16px rgba(0,0,0,.10);
-  z-index: 100; max-height: 360px; overflow-y: auto;
+  z-index: 9000; max-height: 360px; overflow-y: auto;
 }
 .sr-item {
   display: flex; align-items: center; gap: 12px;
