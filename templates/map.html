@@ -23,7 +23,7 @@
 {% endblock %}
 
 {% block content %}
-<div style="position:relative;height:100%;">
+<div class="map-wrapper">
   <div id="map"></div>
 
   <div class="map-search-bar">
@@ -82,8 +82,8 @@ document.addEventListener("DOMContentLoaded", function () {
         // Fetch image for this plaque when popup first opens
         var imgLoaded = false;
         marker.bindPopup(
-          '<div class="popup-body" style="min-width:220px">' +
-          '<img class="map-popup-img" style="width:100%;height:140px;object-fit:cover;display:block" alt="">' +
+          '<div class="popup-body">' +
+          '<img class="map-popup-img" alt="">' +
           '<p class="popup-title">' + esc(p.title) + "</p>" +
           '<a class="popup-link" href="/plaque/' + esc(p.slug) + '">Read full plaque →</a>' +
           "</div>",

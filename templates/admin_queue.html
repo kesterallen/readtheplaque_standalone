@@ -29,9 +29,6 @@
     <div class="queue-card" id="card-{{ p.id }}">
       <div class="qc-img-wrap">
         <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
-        {% if p.thumb_file %}
-        <span class="qc-thumb-badge">THUMB</span>
-        {% endif %}
       </div>
       <div class="qc-body">
         <p class="qc-title">{{ p.title }}</p>

@@ -109,7 +109,7 @@ input.addEventListener('input', () => {
   timer = setTimeout(() => doSearch(q), 300);
 });
 clear.addEventListener('click', () => {
-  input.value = ''; clear.classList.add('is-hidden'); overlay.style.display = 'none';
+  input.value = ''; clear.classList.add('is-hidden'); overlay.classList.add('is-hidden');
 });
 
 async function doSearch(q) {
