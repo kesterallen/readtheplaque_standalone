@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}PlaqueWorld{% endblock %}</title>
+<title>{% block title %}Read The Plaque{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
 {% block extra_head %}{% endblock %}
 </head>
 {% block body_class %}<body>{% endblock %}
@@ -13,7 +14,7 @@
   <div class="header-inner">
     <a href="/" class="logo">
       <span class="logo-icon">🏛</span>
-      <span class="logo-text">PlaqueWorld</span>
+      <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
       <a href="/" class="nav-link">Home</a>
@@ -34,13 +35,32 @@
   <a href="/submit" class="mobile-nav-link">Submit Plaque</a>
 </div>
 
+<!-- Banner: map screenshot linking to Big Map -->
+<a href="/map" class="site-banner">
+  <img src="{{ url_for('static', filename='images/rtp_logo_fromvector.webp') }}"
+       alt="A gigantic map of all the cool plaques in the world."
+       class="site-banner-img">
+  <div class="site-banner-overlay">
+    <p class="site-banner-text">A gigantic map of all the cool plaques in the world.</p>
+    <p class="site-banner-sub">A project of <strong>99% Invisible</strong></p>
+  </div>
+</a>
+
 <main>
 {% block content %}{% endblock %}
 </main>
 
 <footer class="site-footer">
   <div class="footer-inner">
-    <p>PlaqueWorld — Documenting the world's historical markers, one plaque at a time.</p>
+    <p>
+      Read The Plaque — A gigantic map of all the cool plaques in the world.
+      A project of <a href="https://99pi.org">99% Invisible</a>.
+    </p>
+    <p class="footer-meta">
+      Facebook: Read the Plaque ·
+      Email: <a href="mailto:info@readtheplaque.com">info@readtheplaque.com</a> ·
+      Site by Kester Allen
+    </p>
     <p class="footer-links">
       <a href="/">Home</a> ·
       <a href="/map">Map</a> ·
@@ -52,7 +72,6 @@
 </footer>
 
 <script>
-  // Mobile nav toggle
   document.getElementById('navToggle').addEventListener('click', () => {
     document.getElementById('mobileNav').classList.toggle('open');
   });

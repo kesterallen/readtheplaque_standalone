@@ -1,4 +1,4 @@
-# PlaqueWorld 🏛️
+# Read The Plaque 🏛️
 
 A Python 3-tier web application for crowdsourcing historical plaques — similar to readtheplaque.com.
 

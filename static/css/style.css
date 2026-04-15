@@ -1,30 +1,32 @@
 /* ── Variables & Reset ─────────────────────────────────────────────────────── */
 :root {
-  --accent:       #c0392b;   /* RTP's red-ish brand colour */
-  --accent-dark:  #96281b;
-  --accent-light: #e8a09a;
-  /* keep --amber aliases so existing code that references them still works */
-  --amber:        #c0392b;
-  --amber-dark:   #96281b;
-  --amber-light:  #e8a09a;
+  /* RTP / Bootstrap 3 colour palette */
+  --accent:       #d9534f;   /* Bootstrap danger red — RTP brand */
+  --accent-dark:  #c9302c;
+  --accent-light: #f2dede;
+  /* keep --amber aliases for compatibility */
+  --amber:        #d9534f;
+  --amber-dark:   #c9302c;
+  --amber-light:  #f2dede;
 
-  --text:         #222222;
-  --text-muted:   #666666;
+  --text:         #333333;   /* Bootstrap body text */
+  --text-muted:   #777777;
   --surface:      #ffffff;
-  --surface-2:    #f5f5f5;
-  --border:       #dddddd;
+  --surface-2:    #f8f8f8;   /* Bootstrap navbar-default bg */
+  --border:       #e7e7e7;   /* Bootstrap navbar border */
   --bg:           #ffffff;
-  --header-h:     56px;
+  --header-h:     50px;      /* Bootstrap navbar height */
+  --banner-h:     220px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text:       #e8e8e8;
-    --text-muted: #999999;
-    --surface:    #1a1a1a;
-    --surface-2:  #242424;
-    --border:     #333333;
-    --bg:         #141414;
+    --text:       #e0e0e0;
+    --text-muted: #aaaaaa;
+    --surface:    #1e1e1e;
+    --surface-2:  #2a2a2a;
+    --border:     #3a3a3a;
+    --bg:         #181818;
   }
 }
 
@@ -43,60 +45,60 @@ body {
 a { color: inherit; }
 img { max-width: 100%; }
 
-/* ── Header ─────────────────────────────────────────────────────────────────── */
+/* ── Header — Bootstrap navbar-default style ────────────────────────────────── */
 .site-header {
   position: sticky; top: 0; z-index: 900;
   height: var(--header-h);
-  background: var(--surface);
-  border-bottom: 2px solid var(--accent);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
 }
 .header-inner {
-  max-width: 1100px;
+  max-width: 1140px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 15px;
   height: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 .logo {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 6px;
   text-decoration: none;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: var(--accent);
   flex-shrink: 0;
-  letter-spacing: -.01em;
+  line-height: var(--header-h);
 }
-.logo-icon { font-size: 20px; }
-.nav { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.logo-icon { font-size: 18px; }
+.nav { display: flex; align-items: center; gap: 0; margin-left: auto; }
 .nav-link {
-  padding: 6px 12px;
+  padding: 0 14px;
+  line-height: var(--header-h);
+  display: inline-block;
   text-decoration: none;
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-muted);
-  border-radius: 4px;
-  transition: color .15s, background .15s;
+  color: #555555;
+  transition: color .12s, background .12s;
 }
-.nav-link:hover { color: var(--text); background: var(--surface-2); }
+.nav-link:hover { color: #333333; background: #e8e8e8; }
 .nav-link--submit {
   background: var(--accent);
   color: #fff !important;
   font-weight: 600;
-  border-radius: 4px;
   margin-left: 6px;
 }
 .nav-link--submit:hover { background: var(--accent-dark) !important; }
 .nav-toggle {
   display: none;
-  background: none; border: none;
-  font-size: 22px; cursor: pointer;
-  color: var(--text); margin-left: auto;
+  background: none; border: 1px solid #cccccc;
+  border-radius: 4px; padding: 6px 10px;
+  font-size: 18px; cursor: pointer;
+  color: #555; margin-left: auto;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 767px) {
   .nav { display: none; }
   .nav-toggle { display: block; }
 }
@@ -146,16 +148,64 @@ img { max-width: 100%; }
 }
 .btn--ghost:hover { background: rgba(255,255,255,.15); }
 
+/* ── Banner ──────────────────────────────────────────────────────────────────── */
+.site-banner {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  max-height: var(--banner-h);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+}
+.site-banner-img {
+  width: 100%;
+  height: var(--banner-h);
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.7);
+  transition: filter .3s;
+}
+.site-banner:hover .site-banner-img { filter: brightness(0.6); }
+.site-banner-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 20px;
+}
+.site-banner-text {
+  font-size: clamp(16px, 2.5vw, 26px);
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0,0,0,.6);
+  margin-bottom: 8px;
+}
+.site-banner-sub {
+  font-size: 15px;
+  color: rgba(255,255,255,.85);
+  text-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+
+/* Hide banner on map page (full-screen map) */
+body.page-map .site-banner { display: none; }
+
 /* ── Footer ──────────────────────────────────────────────────────────────────── */
 .site-footer {
   border-top: 1px solid var(--border);
-  padding: 28px 20px;
+  padding: 24px 20px;
   text-align: center;
-  margin-top: 48px;
+  margin-top: 40px;
+  background: var(--surface-2);
 }
-.footer-inner { max-width: 600px; margin: 0 auto; }
+.footer-inner { max-width: 700px; margin: 0 auto; }
 .footer-inner p { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
-.footer-links a { color: var(--accent); text-decoration: none; margin: 0 6px; }
+.footer-inner a { color: var(--accent); text-decoration: none; }
+.footer-inner a:hover { text-decoration: underline; }
+.footer-meta { font-size: 12px; color: var(--text-muted); }
+.footer-links a { color: var(--accent); text-decoration: none; margin: 0 4px; }
 .footer-links a:hover { text-decoration: underline; }
 
 
