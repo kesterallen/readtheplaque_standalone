@@ -3,7 +3,7 @@
 download_assets.py
 ==================
 Run once to download all frontend dependencies into static/vendor/.
-After this, PlaqueWorld works with no internet connection at all.
+After this, Read The Plaque works with no internet connection at all.
 
 Usage:
     python download_assets.py
@@ -43,7 +43,7 @@ FONT_URL = (
 
 def fetch_bytes(url):
     req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (compatible; PlaqueWorld/1.0)'
+        'User-Agent': 'Mozilla/5.0 (compatible; Read The Plaque/1.0)'
     })
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
@@ -115,7 +115,7 @@ def patch_leaflet_css():
 
 
 def main():
-    print('\nPlaqueWorld — downloading frontend assets for offline use\n')
+    print('\nRead The Plaque — downloading frontend assets for offline use\n')
 
     print('JS + CSS:')
     for url, rel in ASSETS:

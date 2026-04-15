@@ -2,7 +2,7 @@
 # TODO: approved/pending/deleted? not just a toggle?
 # TODO: move admin password and secret key to env vars
 """
-PlaqueWorld - A 3-tier web application for sharing historical plaques.
+Read The Plaque - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
 Tier 2: Flask application server (this file)
 Tier 3: SQLite database (plaques.db)
