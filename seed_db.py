@@ -50,7 +50,8 @@ approve_url = "http://127.0.0.1:5000/admin/approve/all"
 
 num_dups = 3
 
-image_dir = pathlib.Path("/mnt/c/Users/CIAE/OneDrive - Novonesis/Pictures/Screenshots/")
+#image_dir = pathlib.Path("/mnt/c/Users/CIAE/OneDrive - Novonesis/Pictures/Screenshots/")
+image_dir = pathlib.Path("/home/kester/Pictures/Screenshots/")
 image_filenames = [f for f in image_dir.iterdir() if f.is_file()]
 
 for i in range(num_dups):
