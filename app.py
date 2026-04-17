@@ -1,8 +1,7 @@
-# display HTML-ifiied text in "description" properly
 # TODO: approved/pending/deleted? not just a toggle?
 # TODO: move admin password and secret key to env vars
 """
-PlaqueWorld - A 3-tier web application for sharing historical plaques.
+Read The Plaque - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
 Tier 2: Flask application server (this file)
 Tier 3: SQLite database (plaques.db)
@@ -14,11 +13,8 @@ import random
 import io
 import math
 import os
-import re
 import uuid
 import sqlite3
-import urllib.request
-import urllib.error
 from datetime import datetime
 from typing import Optional
 from PIL import Image, ImageOps
@@ -38,6 +34,7 @@ THUMB_DIR   = os.path.join(_DATA_DIR, "thumbs")
 THUMB_SIZE  = (400, 300)
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_MB      = 16
+NEARBY_LIMIT = 10
 
 # TODO Change this in production!
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "plaqueadmin")
@@ -67,11 +64,12 @@ def subdir_path(base_dir: str, filename: str) -> str:
 
 
 def new_image_filename(ext: str) -> str:
-    """Generate a UUID-based filename and its subdirectory path."""
+    """Generate a UUID-based filename."""
     return f"{uuid.uuid4().hex}.{ext}"
 
 
 def new_thumb_filename() -> str:
+    """Generate a UUID-based thumbnail filename."""
     return f"{uuid.uuid4().hex}_thumb.jpg"
 
 # ── Thumbnail helper ───────────────────────────────────────────────────────────
@@ -94,6 +92,7 @@ def make_thumbnail(image_filename: str, thumb_filename: str) -> Optional[str]:
         return None
 
 def make_thumbnail_from_bytes(img_bytes: bytes, thumb_filename: str) -> Optional[str]:
+    """Create thumbnail from bytes. thumb_filename is relative."""
     try:
         with Image.open(io.BytesIO(img_bytes)) as img:
             return _save_thumbnail(img, thumb_filename)
@@ -103,6 +102,7 @@ def make_thumbnail_from_bytes(img_bytes: bytes, thumb_filename: str) -> Optional
 
 # ── Database helpers ───────────────────────────────────────────────────────────
 def get_db() -> sqlite3.Connection:
+    """ Get a connection to the DB_PATH sqlite db """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")   # better concurrency
@@ -111,6 +111,7 @@ def get_db() -> sqlite3.Connection:
 
 
 def init_db() -> None:
+    """ Create a new db if it isn't already there"""
     db = get_db()
     # DDL — executescript issues an implicit COMMIT before running, safe for schema work
     db.executescript("""
@@ -164,6 +165,7 @@ def init_db() -> None:
 
 
 def plaque_to_dict(row: sqlite3.Row) -> dict:
+    """ Convert a plaque table row to dict format """
     d = dict(row)
     img = d["image_file"]
     d["image_url"] = f"/uploads/{img[:2]}/{img}" if (
@@ -481,7 +483,8 @@ def submit():
                 # Clean up the already-written duplicate file
                 try:
                     os.remove(subdir_path(UPLOAD_DIR, img["filename"]))
-                    if img["thumb"]: os.remove(subdir_path(THUMB_DIR, img["thumb"]))
+                    if img["thumb"]:
+                        os.remove(subdir_path(THUMB_DIR, img["thumb"]))
                 except OSError:
                     pass
                 continue
@@ -662,6 +665,7 @@ def admin_approve_all():
 
 @app.route("/admin/approve/<int:plaque_id>", methods=["POST"])
 def admin_approve(plaque_id):
+    """ Allow an admin to approve a plaque """
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
@@ -671,6 +675,7 @@ def admin_approve(plaque_id):
 
 @app.route("/admin/reject/<int:plaque_id>", methods=["POST"])
 def admin_reject(plaque_id):
+    """ Allow an admin to reject a plaque """
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
@@ -689,6 +694,7 @@ def admin_reject(plaque_id):
 
 @app.route("/admin/edit/<int:plaque_id>", methods=["GET", "POST"])
 def admin_edit(plaque_id):
+    """ Allow an admin to edit a plaque """
     if not is_admin():
         return redirect(url_for("admin_login"))
 
@@ -892,6 +898,7 @@ def api_search():
 
 @app.route("/admin/images/<int:plaque_id>/add", methods=["POST"])
 def admin_image_add(plaque_id):
+    """ Allow an admin to add an image to a plaque """
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     f = request.files.get("image")
@@ -899,7 +906,7 @@ def admin_image_add(plaque_id):
         return jsonify({"ok": False, "error": "No image provided"}), 400
     ext = f.filename.rsplit(".", 1)[-1].lower()
     if ext not in ALLOWED_EXT:
-        return jsonify({"ok": False, "error": f"File type not allowed"}), 400
+        return jsonify({"ok": False, "error": "File type not allowed"}), 400
     with get_db() as db:
         count = db.execute("SELECT COUNT(*) FROM plaque_images WHERE plaque_id=?", (plaque_id,)).fetchone()[0]
         result = add_image_to_plaque(db, plaque_id, f, ext, is_primary=(count == 0), sort_order=count)
@@ -913,6 +920,7 @@ def admin_image_add(plaque_id):
 
 @app.route("/admin/images/<int:image_id>/delete", methods=["POST"])
 def admin_image_delete(image_id):
+    """ Allow an admin to delete an image from a plaque """
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
@@ -925,8 +933,10 @@ def admin_image_delete(image_id):
             return jsonify({"ok": False, "error": "Cannot delete the only image"}), 400
         for f, folder in [(img["image_file"], UPLOAD_DIR), (img["thumb_file"], THUMB_DIR)]:
             if f:
-                try: os.remove(subdir_path(folder, f))
-                except OSError: pass
+                try:
+                    os.remove(subdir_path(folder, f))
+                except OSError:
+                    pass
         db.execute("DELETE FROM plaque_images WHERE id=?", (image_id,))
         if img["is_primary"]:
             db.execute("UPDATE plaque_images SET is_primary=1 WHERE plaque_id=? ORDER BY sort_order, id LIMIT 1", (plaque_id,))
@@ -936,6 +946,7 @@ def admin_image_delete(image_id):
 
 @app.route("/admin/images/<int:image_id>/set-primary", methods=["POST"])
 def admin_image_set_primary(image_id):
+    """ Allow an admin to set which image is primary for a plaque """
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
@@ -951,7 +962,7 @@ def admin_image_set_primary(image_id):
 
 @app.route("/api/nearby/<int:plaque_id>")
 def api_nearby(plaque_id):
-    """Return the 10 nearest approved plaques to a given plaque, sorted by distance."""
+    """Return the NEARBY_LIMIT nearest approved plaques to a given plaque, sorted by distance."""
     with get_db() as db:
         origin = db.execute(
             "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
@@ -969,7 +980,7 @@ def api_nearby(plaque_id):
             "SELECT * FROM plaques WHERE approved=1 AND id != ? "
             "AND latitude  BETWEEN ? AND ? "
             "AND longitude BETWEEN ? AND ? "
-            "LIMIT 10",
+            f"LIMIT {NEARBY_LIMIT}",
             (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
         ).fetchall()
 
@@ -999,6 +1010,7 @@ def api_nearby(plaque_id):
 
 @app.route("/api/plaques/<int:plaque_id>")
 def api_plaque(plaque_id):
+    """ Return one plaque by ID """
     with get_db() as db:
         row = db.execute(
             "SELECT * FROM plaques WHERE id=? AND approved=1", (plaque_id,)
@@ -1014,6 +1026,7 @@ def api_plaque(plaque_id):
 # ── Upload / thumb file serving ────────────────────────────────────────────────
 @app.route("/uploads/<path:filename>")
 def uploaded_file(filename):
+    """ Serve a file (image) from uploads """
     fp = os.path.join(UPLOAD_DIR, filename)
     if not os.path.exists(fp):
         return _placeholder_jpeg(filename), 200, {"Content-Type": "image/jpeg"}
@@ -1022,6 +1035,7 @@ def uploaded_file(filename):
 
 @app.route("/thumbs/<path:filename>")
 def thumb_file(filename):
+    """ Serve a thumbnail file (image) from uploads """
     fp = os.path.join(THUMB_DIR, filename)
     if not os.path.exists(fp):
         return _placeholder_jpeg(filename), 200, {"Content-Type": "image/jpeg"}

@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}PlaqueWorld{% endblock %}</title>
+<title>{% block title %}Read The Plaque{% endblock %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}">
 {% block extra_head %}{% endblock %}
 </head>
 {% block body_class %}<body>{% endblock %}
@@ -12,8 +13,7 @@
 <header class="site-header">
   <div class="header-inner">
     <a href="/" class="logo">
-      <span class="logo-icon">🏛</span>
-      <span class="logo-text">PlaqueWorld</span>
+      <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
       <a href="/" class="nav-link">Home</a>
@@ -34,25 +34,38 @@
   <a href="/submit" class="mobile-nav-link">Submit Plaque</a>
 </div>
 
+<a href="/map" class="site-banner">
+  <img src="{{ url_for('static', filename='images/rtp_logo.webp') }}"
+       alt="A gigantic map of all the cool plaques in the world."
+       class="site-banner-img">
+  <div class="site-banner-overlay">
+    <p class="site-banner-text">
+      A gigantic map of all the cool plaques in the world. A project of <strong>99% Invisible</strong>
+    </p>
+  </div>
+</a>
+
 <main>
 {% block content %}{% endblock %}
 </main>
 
 <footer class="site-footer">
   <div class="footer-inner">
-    <p>PlaqueWorld — Documenting the world's historical markers, one plaque at a time.</p>
     <p class="footer-links">
-      <a href="/">Home</a> ·
-      <a href="/map">Map</a> ·
-      <a href="/random">Random</a> ·
-      <a href="/about">About</a> ·
-      <a href="/submit">Submit</a>
+      Read The Plaque is licensed under a <a rel="license"
+      href="http://creativecommons.org/licenses/by/4.0/">Creative Commons
+      Attribution 4.0 International License </a> unless otherwise noted and was
+      made by <a href="https://github.com/kesterallen">Kester Allen</a>.
+      Contact us by <a href="https://facebook.com/readtheplaque">Facebook</a> or
+      <a href="mailto:info@readtheplaque.com">info@readtheplaque.com</a>
+      Thanks to <a href="https://github.com/Leaflet">Leaflet</a> and 
+      <a href="https://osmfoundation.org/wiki/Terms_of_Use">OpenStreetMap</a>
+      for great mapping solutions.
     </p>
   </div>
 </footer>
 
 <script>
-  // Mobile nav toggle
   document.getElementById('navToggle').addEventListener('click', () => {
     document.getElementById('mobileNav').classList.toggle('open');
   });

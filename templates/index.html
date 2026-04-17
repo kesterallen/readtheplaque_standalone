@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}PlaqueWorld — Explore Historical Plaques{% endblock %}
+{% block title %}Read The Plaque{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -39,7 +39,6 @@
 <section class="map-section">
   <div class="map-section-header">
     <h2>{{ total }} plaques worldwide</h2>
-    <a href="/map">Explore the Big Map →</a>
   </div>
   <div id="home-map"></div>
 </section>
@@ -48,7 +47,6 @@
 <section class="recent-section">
   <div class="recent-header">
     <h2>The most recent plaques:</h2>
-    <a href="/submit">+ Submit one</a>
   </div>
   <div class="plaque-grid">
     {% for p in recent %}
@@ -154,10 +152,18 @@ document.addEventListener('click', e => {
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-var homeMap = L.map('home-map', { zoomControl: true, attributionControl: false })
-  .setView([20, 10], 2);
+var homeMap = L.map('home-map', { zoomControl: true }).setView([20, 10], 2);
 
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(homeMap);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(homeMap);
+
+// Hide the attribution control when the map scrolls out of view
+var attrControl = homeMap.attributionControl.getContainer();
+new IntersectionObserver(function(entries) {
+  attrControl.style.visibility = entries[0].isIntersecting ? 'visible' : 'hidden';
+}, { threshold: 0 }).observe(document.getElementById('home-map'));
 
 var clusters = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 36 });
 

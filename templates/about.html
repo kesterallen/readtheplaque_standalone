@@ -1,24 +1,30 @@
 {% extends "base.html" %}
-{% block title %}About — PlaqueWorld{% endblock %}
+{% block title %}About — Read The Plaque{% endblock %}
 
 {% block content %}
 <div class="about-page">
   <div class="about-header">
-    <h1>About PlaqueWorld</h1>
+    <h1>About Read The Plaque</h1>
   </div>
 
   <div class="about-body">
     <p class="about-lead">
-      PlaqueWorld is a community-driven archive of the world's historical plaques — the small
-      bronze, stone, and ceramic markers that quietly tell the stories of the places we walk past
-      every day.
+      It began with a lunch. A lunch of Indian food salad things: <audio controls="controls"> <source src="/static/always_read_the_plaque.mp3"></source>
     </p>
 
-    <h2>What is a plaque?</h2>
     <p>
-      Historical plaques mark buildings, streets, and landmarks where something significant
-      happened — a birth, a battle, a discovery, a first. They exist in every city and village,
-      and most people walk past them without a second glance. PlaqueWorld exists to change that.
+      And here's a fantastic episode of
+      <a href="http://thememorypalace.us/">The Memory Palace</a> about plaques,
+      <a href="https://thememorypalace.us/notes-on-an-imagined-plaque/">"Notes on an Imagined Plaque"</a>:
+      <audio controls="controls"> <source src="https://thememorypalace.us/app/uploads/2015/08/Episode-73-clean.mp3"></source> </audio>
+    </p>
+
+    <h2>Special Thanks to:</h2>
+    <p>
+      <li>Alan Brown for donating over 2000 plaque images and transcriptions from his sites <a href="http://ontarioplaques.com">Ontario Plaques</a> and <a href="http://torontoplaques.com">Toronto Plaques</a>.</li>
+      <li>Byron Hooks for contributing nearly 3000 plaques from his site <a href="http://lat34north.com/">Lat34North</a>.</li>
+      <li><a href="http://twitter.com/@loganrockmore">Logan Rockmore</a> for his beautiful redesign of the origainl maps interface and page header.</li>
+      <li><a href="http://www.geograph.org.uk/">Geograph</a> for sharing their plaques photos and transcriptions.</li>
     </p>
 
     <h2>How it works</h2>
@@ -35,12 +41,7 @@
       <li><a href="/random">Random Plaque</a> — discover something unexpected</li>
       <li><a href="/submit">Submit a Plaque</a> — add one you've found</li>
     </ul>
-
-    <h2>Contact</h2>
-    <p>
-      Found a bug, have a suggestion, or want to get in touch? Open an issue or pull request on
-      <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>.
-    </p>
   </div>
+
 </div>
 {% endblock %}

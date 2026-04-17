@@ -1,7 +1,10 @@
 
 import datetime
+import random
 import requests
+import pathlib
 
+fields = ("slug", "title", "description", "latitude", "longitude")
 seed_data = [
     ('alamo-san-antonio', 'The Alamo', 'HERE ON THIS SITE IN 1836 THE DEFENDERS OF THE ALAMO MADE THEIR HEROIC STAND FOR TEXAS INDEPENDENCE', 29.426, -98.4861, 'sample_alamo.jpg', 'admin'),
     ('liberty-bell-philadelphia', 'Liberty Bell', 'PROCLAIM LIBERTY THROUGHOUT ALL THE LAND UNTO ALL THE INHABITANTS THEREOF — Leviticus XXV:X', 39.9496, -75.1503, 'sample_liberty.jpg', 'admin'),
@@ -44,14 +47,18 @@ seed_data = [
 now = datetime.datetime.now()
 url = "http://127.0.0.1:5000/submit"
 approve_url = "http://127.0.0.1:5000/admin/approve/all"
-fields = ("slug", "title", "description", "latitude", "longitude")
-image_filename = "/mnt/c/Users/CIAE/OneDrive - Novonesis/Pictures/Screenshots/Screenshot 2025-05-08 142354.png"
 
 num_dups = 3
+
+image_dir = pathlib.Path("/mnt/c/Users/CIAE/OneDrive - Novonesis/Pictures/Screenshots/")
+image_filenames = [f for f in image_dir.iterdir() if f.is_file()]
+
 for i in range(num_dups):
     print(f"{i} / {num_dups}")
     for seed in seed_data:
+        image_filename = str(random.choice(image_filenames))
         with open(image_filename, "rb") as file:
             files = {"images": (image_filename, file)}
             response = requests.post(url, data=dict(zip(fields, seed)), files=files)
+
 response = requests.get(approve_url)

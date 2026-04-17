@@ -1,6 +1,6 @@
-# PlaqueWorld 🏛️
+# Read The Plaque 🏛️
 
-A Python 3-tier web application for crowdsourcing historical plaques — similar to readtheplaque.com.
+A Python 3-tier web application for crowdsourcing historical plaques
 
 ## Architecture
 
@@ -95,7 +95,6 @@ server {
 | latitude | text | ✅ |
 | longitude | text | ✅ |
 | description | text | optional |
-| location | text | optional |
 | submitted_by | text | optional |
 
 ## Project Structure
