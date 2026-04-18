@@ -1,5 +1,7 @@
 # TODO: approved/pending/deleted? not just a toggle?
 # TODO: move admin password and secret key to env vars
+# TODO: check edit plaque new slug
+# TODO: check edit plaque with adding new images
 """
 Read The Plaque - A 3-tier web application for sharing historical plaques.
 Tier 1: HTML/CSS/JS frontend (templates + static)
@@ -15,7 +17,7 @@ import math
 import os
 import uuid
 import sqlite3
-from datetime import datetime
+import datetime
 from typing import Optional
 from PIL import Image, ImageOps
 from flask import (
@@ -127,7 +129,8 @@ def init_db() -> None:
         submitted_by TEXT,
         approved     INTEGER NOT NULL DEFAULT 0,
         is_featured  INTEGER NOT NULL DEFAULT 0,
-        created_at   TEXT    NOT NULL
+        created_at   TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_plaques_slug     ON plaques(slug);
@@ -156,7 +159,7 @@ def init_db() -> None:
         image_hash TEXT,
         is_primary INTEGER NOT NULL DEFAULT 0,
         sort_order INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT    NOT NULL
+        created_at TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE INDEX IF NOT EXISTS idx_plaque_images_plaque ON plaque_images(plaque_id);
@@ -235,13 +238,12 @@ def add_image_to_plaque(
         fh.write(data)
     thumb_filename = new_thumb_filename()
     thumb_ok = make_thumbnail(filename, thumb_filename)
-    now = datetime.utcnow().isoformat()
     db.execute(
         "INSERT INTO plaque_images"
-        " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order, created_at)"
-        " VALUES (?,?,?,?,?,?,?)",
+        " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order)"
+        " VALUES (?,?,?,?,?,?)",
         (plaque_id, filename, thumb_filename if thumb_ok else None,
-         image_hash, 1 if is_primary else 0, sort_order, now),
+         image_hash, 1 if is_primary else 0, sort_order),
     )
     # Keep plaques.image_file / thumb_file in sync with primary image
     if is_primary:
@@ -402,6 +404,7 @@ def submit():
     if request.method == "GET":
         return render_template("submit.html")
 
+    # Rest of methos is the POST option:
     errors = []
     title        = request.form.get("title", "").strip()
     description  = request.form.get("description", "").strip()
@@ -432,8 +435,18 @@ def submit():
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
-    base_slug = "-".join(title.lower().split())[:60]
-    slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
+    # If slug is submitted in the input form, use that (for copying from RTP and matching that slug)
+    base_slug = request.form.get("slug", "-".join(title.lower().split()))
+
+    # De-duplicate slug:
+    slug = base_slug
+    suffix = 1
+    same_slug_sql = "SELECT COUNT(*) FROM plaques WHERE slug=?"
+    with get_db() as db:
+        while (count := db.execute(same_slug_sql, (slug,)).fetchone()[0]) != 0:
+            suffix += 1
+            slug = f"{base_slug}{suffix}"
+
     raw_tags = request.form.get("tags", "")
     tag_names = parse_tags(raw_tags)
 
@@ -466,12 +479,12 @@ def submit():
         db.execute(
             "INSERT INTO plaques "
             "(slug,title,description,latitude,longitude,"
-            "image_file,thumb_file,submitted_by,approved,created_at)"
-            " VALUES (?,?,?,?,?,?,?,?,0,?)",
-            (slug, title, description, lat, lng,
-             primary["filename"], primary["thumb"],
-             submitted_by, datetime.utcnow().isoformat())
+            "image_file,thumb_file,submitted_by,approved)"
+            " VALUES (?,?,?,?,?,?,?,?,0)",
+            (slug, title, description, lat, lng, primary["filename"],
+            primary["thumb"], submitted_by)
         )
+        print(f"slug is {slug}")
         plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
 
         # Insert plaque_images rows, deduplicating by hash within this plaque
@@ -491,10 +504,10 @@ def submit():
             seen_hashes.add(img["hash"])
             db.execute(
                 "INSERT INTO plaque_images"
-                " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order, created_at)"
-                " VALUES (?,?,?,?,?,?,?)",
+                " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order)"
+                " VALUES (?,?,?,?,?,?)",
                 (plaque_id, img["filename"], img["thumb"], img["hash"],
-                 1 if saved == 0 else 0, i, datetime.utcnow().isoformat())
+                 1 if saved == 0 else 0, i)
             )
             saved += 1
 
@@ -775,10 +788,10 @@ def admin_edit(plaque_id):
             db.execute("UPDATE plaques SET is_featured=0")
         db.execute(
             "UPDATE plaques SET title=?, description=?, latitude=?, longitude=?,"
-            " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=? WHERE id=?",
+            " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=?, updated_at=? WHERE id=?",
             (title, description, lat, lng,
              submitted_by, approved, 1 if set_featured else 0,
-             new_img_file, new_thumb_file, plaque_id)
+             new_img_file, new_thumb_file, datetime.datetime.now(datetime.UTC), plaque_id)
         )
         set_tags_for_plaque(db, plaque_id, tag_names)
 
