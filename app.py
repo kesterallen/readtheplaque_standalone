@@ -484,7 +484,6 @@ def submit():
             (slug, title, description, lat, lng, primary["filename"],
             primary["thumb"], submitted_by)
         )
-        print(f"slug is {slug}")
         plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
 
         # Insert plaque_images rows, deduplicating by hash within this plaque

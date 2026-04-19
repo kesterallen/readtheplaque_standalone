@@ -155,24 +155,17 @@ pickerMap.on('click', function(e) {
   });
 });
 
-// ── Image preview ─────────────────────────────────────────────────────────────
-var dz      = document.getElementById('dropZone');
-var fileIn  = document.getElementById('newImage');
-var preview = document.getElementById('newImgPreview');
-
+// ── Drop zone drag/drop wiring for gallery input ──────────────────────────────
+var dz = document.getElementById('dropZone');
 dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', function() { dz.classList.remove('drag-over'); });
 dz.addEventListener('drop', function(e) {
   e.preventDefault(); dz.classList.remove('drag-over');
-  if (e.dataTransfer.files[0]) showPreview(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) {
+    // Feed dropped files into the pending queue directly
+    Array.from(e.dataTransfer.files).forEach(addPendingFile);
+  }
 });
-fileIn.addEventListener('change', function() { if (fileIn.files[0]) showPreview(fileIn.files[0]); });
-
-function showPreview(file) {
-  var reader = new FileReader();
-  reader.onload = function(e) { preview.src = e.target.result; preview.style.display = 'block'; };
-  reader.readAsDataURL(file);
-}
 
 // ── Gallery management ───────────────────────────────────────────────────────
 function setPrimary(imageId) {
@@ -225,19 +218,21 @@ var newImagesInput = document.getElementById('newImages');
 var newPreviews    = document.getElementById('newImgPreviews');
 var pendingFiles   = [];
 
+function addPendingFile(file) {
+  pendingFiles.push(file);
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var img = document.createElement('img');
+    img.src = e.target.result;
+    img.style.cssText = 'height:80px;border-radius:4px;border:1px solid var(--border)';
+    newPreviews.appendChild(img);
+  };
+  reader.readAsDataURL(file);
+  newPreviews.style.display = 'flex';
+}
+
 newImagesInput.addEventListener('change', function() {
-  Array.from(newImagesInput.files).forEach(function(file) {
-    pendingFiles.push(file);
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var img = document.createElement('img');
-      img.src = e.target.result;
-      img.style.cssText = 'height:80px;border-radius:4px;border:1px solid var(--border)';
-      newPreviews.appendChild(img);
-    };
-    reader.readAsDataURL(file);
-  });
-  newPreviews.style.display = pendingFiles.length ? 'flex' : 'none';
+  Array.from(newImagesInput.files).forEach(addPendingFile);
   newImagesInput.value = '';
 });
 
