@@ -1,4 +1,3 @@
-
 # examplar pages:
 #     tags:
 #          /crater-principal-del-volcan-poas (i=0, no tags) -> [[]]
@@ -14,33 +13,34 @@ import requests
 import time
 import urllib.request
 
-#base_url = "https://readtheplaque-standalone.fly.dev"
-base_url = "http://127.0.0.1:5000" # N.B. no httpS
+# base_url = "https://readtheplaque-standalone.fly.dev"
+base_url = "http://127.0.0.1:5000"  # N.B. no httpS
 
 rtp_geojson_filename = "./plaques.geojson"
 with open(rtp_geojson_filename) as geojson_file:
     rtp_data = json.load(geojson_file)
 
-#for i, feature in enumerate(rtp_data["features"]):
-    #props = feature["properties"]
-    #if props["title_page_url"] == "/plaque/mike-haggerty-plaza":
-        #print(f"{i}, {props}")
+# for i, feature in enumerate(rtp_data["features"]):
+# props = feature["properties"]
+# if props["title_page_url"] == "/plaque/mike-haggerty-plaza":
+# print(f"{i}, {props}")
 
 now = datetime.datetime.now()
 url = f"{base_url}/submit"
 approve_url = f"{base_url}/admin/approve/all"
 
 results = {
-    "uploaded_plaques": dict(), # slug -> response
+    "uploaded_plaques": dict(),  # slug -> response
     "skipped_plaques": dict(),
 }
 
 for rtp_plaque in [
     rtp_data["features"][0],
     rtp_data["features"][32],
-    rtp_data["features"][330]]:
-#for rtp_plaque in random.choices(rtp_data["features"], k=5):
-# for i, rtp_plaque in enumerate(reversed(rtp_data["features"])):
+    rtp_data["features"][330],
+]:
+    # for rtp_plaque in random.choices(rtp_data["features"], k=5):
+    # for i, rtp_plaque in enumerate(reversed(rtp_data["features"])):
     # Load from geojson
     props = rtp_plaque["properties"]
 
@@ -59,7 +59,7 @@ for rtp_plaque in [
     plaque_props = response.json()["features"][0]["properties"]
     description = plaque_props["description"]
     img_url = plaque_props["img_url"]
-    #img_rot = plaque_props["img_rot"]
+    # img_rot = plaque_props["img_rot"]
     updated_at = plaque_props["updated_on"]
     created_by = plaque_props["created_by"]
     created_at = plaque_props["created_on"]
