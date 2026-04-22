@@ -61,7 +61,7 @@ for rtp_plaque in [
     img_url = plaque_props["img_url"]
     # img_rot = plaque_props["img_rot"]
     updated_at = plaque_props["updated_on"]
-    created_by = plaque_props["created_by"]
+    submitted_by = plaque_props["created_by"]
     created_at = plaque_props["created_on"]
     tags = ", ".join(plaque_props["tags"][0])
     img_filename = f"/tmp/{slug}.jpg"
@@ -77,7 +77,7 @@ for rtp_plaque in [
             "latitude": latitude,
             "longitude": longitude,
             "updated_at": updated_at,
-            "created_by": created_by,
+            "submitted_by": submitted_by,
             "created_at": created_at,
             "tags": tags,
         }

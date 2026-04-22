@@ -99,6 +99,7 @@ server {
 
 ## Project Structure
 
+TODO: update this
 ```
 plaquesite/
 ├── app.py                 # Flask app + routes + DB logic

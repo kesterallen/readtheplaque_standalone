@@ -65,7 +65,7 @@
 <nav class="paginator" aria-label="Pages">
   {# Prev #}
   {% if page > 1 %}
-    <a href="{{ url_for('index', page=page-1) }}" aria-label="Previous">‹</a>
+    <a href="{{ url_for('public.index', page=page-1) }}" aria-label="Previous">‹</a>
   {% else %}
     <span class="disabled">‹</span>
   {% endif %}
@@ -75,7 +75,7 @@
     {% if p == page %}
       <span class="current">{{ p }}</span>
     {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-      <a href="{{ url_for('index', page=p) }}">{{ p }}</a>
+      <a href="{{ url_for('public.index', page=p) }}">{{ p }}</a>
     {% elif p == page - 3 or p == page + 3 %}
       <span class="ellipsis">…</span>
     {% endif %}
@@ -83,7 +83,7 @@
 
   {# Next #}
   {% if page < total_pages %}
-    <a href="{{ url_for('index', page=page+1) }}" aria-label="Next">›</a>
+    <a href="{{ url_for('public.index', page=page+1) }}" aria-label="Next">›</a>
   {% else %}
     <span class="disabled">›</span>
   {% endif %}
