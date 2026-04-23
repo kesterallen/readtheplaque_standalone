@@ -6,8 +6,6 @@ All routes live in routes/, helpers in models.py, config in config.py,
 and DB setup in database.py.
 """
 
-#TODO: copy /static/always_read_the_plaque.mp3
-
 import os
 
 from flask import Flask

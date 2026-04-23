@@ -139,8 +139,12 @@ def submit():
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
+    # If created_at or updated_at exist in the form, use them and submit them
+    created_at = request.form.get("created_at", None)
+    updated_at = request.form.get("updated_at", None)
+
     plaque_id, slug, duplicates = _insert_plaque_rows(
-        title, description, lat, lng, submitted_by, saved_images
+        title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
     )
     with get_db() as db:
         set_tags_for_plaque(db, plaque_id, tag_names)
@@ -203,45 +207,32 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
 
 
 def _insert_plaque_rows(
-    title, description, lat, lng, submitted_by, saved_images
+    title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
 ) -> tuple[int, str, list[str]]:
     with get_db() as db:
         primary = saved_images[0]
         slug = _make_slug(title, request.form.get("slug"))
-        db.execute(
-            "INSERT INTO plaques"
-            " (slug, title, description, latitude, longitude,"
-            " image_file, thumb_file, submitted_by, approved)"
-            " VALUES (?,?,?,?,?,?,?,?,0)",
-            (
-                slug,
-                title,
-                description,
-                lat,
-                lng,
-                primary["filename"],
-                primary["thumb"],
-                submitted_by,
-            ),
-        )
-        plaque_id = db.execute(
-            "SELECT id FROM plaques WHERE slug=?", (slug,)
-        ).fetchone()["id"]
 
-        seen_hashes: set[str] = set()
+        # Build column list and values dynamically for optional fields
+        cols = ["slug", "title", "description", "latitude", "longitude",
+                "image_file", "thumb_file", "submitted_by", "approved"]
+        vals = [slug, title, description, lat, lng,
+                primary["filename"], primary["thumb"], submitted_by, 0]
+        if created_at is not None:
+            cols.append("created_at")
+            vals.append(created_at)
+        if updated_at is not None:
+            cols.append("updated_at")
+            vals.append(updated_at)
+
+        placeholders = ", ".join("?" * len(cols))
+
+        db.execute( f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals)
+        plaque_id = db.execute( "SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
+
         saved = 0
         duplicates: list[str] = []
         for i, img in enumerate(saved_images):
-            if img["hash"] in seen_hashes:
-                duplicates.append(img["original_name"])
-                try:
-                    os.remove(subdir_path(UPLOAD_DIR, img["filename"]))
-                    if img["thumb"]:
-                        os.remove(subdir_path(THUMB_DIR, img["thumb"]))
-                except OSError:
-                    pass
-                continue
-            seen_hashes.add(img["hash"])
             db.execute(
                 "INSERT INTO plaque_images"
                 " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order)"
