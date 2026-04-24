@@ -3,16 +3,20 @@
 #          /crater-principal-del-volcan-poas (i=0, no tags) -> [[]]
 #          /menehune-ditch (i=32, three tags) -> [['menehune ditch', 'waimea', 'kauai']]
 #          /mike-haggerty-plaza (i=330, one tag) -> [['the mike']]
+#     "Submitted by @someone":
+#          /trinity-site (i=5204) -> '<a href="https:twitter.com/wellerstein">@wellerstein</a>'
 
 import datetime
 import glob
 import json
 import os
 import random
+import re
 import requests
-from requests.exceptions import RequestException
+from requests.exceptions import RequestException, JSONDecodeError
 import time
 import urllib.request
+
 
 # base_url = "https://readtheplaque-standalone.fly.dev"
 base_url = "http://127.0.0.1:5000"  # N.B. no httpS
@@ -31,15 +35,15 @@ results = {
     "problem": dict(),
 }
 
-#for rtp_plaque in [
-    #rtp_data["features"][0],
-    #rtp_data["features"][32],
-    #rtp_data["features"][330],
-#]:
-NUM_PLAQUES = 30
-for rtp_plaque in random.choices(rtp_data["features"], k=NUM_PLAQUES):
-    # for i, rtp_plaque in enumerate(reversed(rtp_data["features"])):
-
+for i, rtp_plaque in enumerate([
+    rtp_data["features"][5204],
+    rtp_data["features"][0],
+    rtp_data["features"][32],
+    rtp_data["features"][330],
+]):
+#NUM_PLAQUES = 30
+#for i, rtp_plaque in enumerate(random.choices(rtp_data["features"], k=NUM_PLAQUES)):
+#for i, rtp_plaque in enumerate(reversed(rtp_data["features"][:10])):
     # Load from geojson
     #
     props = rtp_plaque["properties"]
@@ -56,7 +60,10 @@ for rtp_plaque in random.choices(rtp_data["features"], k=NUM_PLAQUES):
     # Load from readtheplaque.com
     #
     rtp_url = f"https://readtheplaque.com/dict/full/{slug}"
-    print(f"Copying {slug} from {rtp_url} to {base_url}")
+    print(
+        f"Copying {slug} ({len(rtp_data['features']) - i}/{len(rtp_data['features'])}) "
+        #f"from {rtp_url} to {base_url}"
+    )
 
     response = requests.get(rtp_url)
     plaque_props = response.json()["features"][0]["properties"]
@@ -68,6 +75,11 @@ for rtp_plaque in random.choices(rtp_data["features"], k=NUM_PLAQUES):
     tags = ", ".join(plaque_props["tags"][0])
     img_filename = f"/tmp/{slug}.jpg"
     urllib.request.urlretrieve(img_url, img_filename)
+
+    # Submitted by in the text of the description:
+    if submitted_by == "None":
+        if match := re.search(r"Submitted by (.*)", description):
+            submitted_by = match.groups(1)
 
     data = {
         "slug": slug,
@@ -88,11 +100,13 @@ for rtp_plaque in random.choices(rtp_data["features"], k=NUM_PLAQUES):
 
         result_key = "uploaded" if response.status_code == 200 else "problem"
         result_value = response
-    except RequestException as e:
+    except (RequestException, JSONDecodeError) as e:
         result_key = "problem"
         result_value = e
 
     results[result_key][slug] = result_value
+
+    time.sleep(60)
 
 
 response = requests.get(approve_url)

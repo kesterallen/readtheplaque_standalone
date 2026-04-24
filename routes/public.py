@@ -14,7 +14,7 @@ from flask import (
     url_for,
 )
 
-from config import ALLOWED_EXT, THUMB_DIR, UPLOAD_DIR
+from config import ALLOWED_EXT, THUMB_DIR, UPLOAD_DIR, PER_PAGE
 from database import get_db
 from models import (
     _placeholder_jpeg,
@@ -43,14 +43,11 @@ public_bp = Blueprint("public", __name__)
 @public_bp.route("/")
 @public_bp.route("/page/<int:page>")
 def index(page=1):
-    per_page = 12
     page = max(1, page)
-    offset = (page - 1) * per_page
+    offset = (page - 1) * PER_PAGE
 
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[
-            0
-        ]
+        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
 
         featured_row = db.execute(
             "SELECT * FROM plaques WHERE approved=1 AND is_featured=1 LIMIT 1"
@@ -65,12 +62,12 @@ def index(page=1):
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1 AND id != ?"
             " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (featured_id or -1, per_page, offset),
+            (featured_id or -1, PER_PAGE, offset),
         ).fetchall()
 
     featured = plaque_to_dict(featured_row) if (page == 1 and featured_row) else None
     recent = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // per_page))
+    total_pages = max(1, -(-total // PER_PAGE))
 
     return render_template(
         "index.html",
@@ -81,8 +78,22 @@ def index(page=1):
         total_pages=total_pages,
     )
 
+# ── RSS Feed ──────────────────────────────────────────────────────────────────
+@public_bp.route("/rss")
+@public_bp.route("/feed")
+def feed():
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT ?",
+            (PER_PAGE,),
+        ).fetchall()
+    recent = [plaque_to_dict(r) for r in rows]
+    return render_template(
+        "feed.xml",
+        recent=recent,
+    )
 
-# ── Map ────────────────────────────────────────────────────────────────────────
+# ── Map ───────────────────────────────────────────────────────────────────────
 @public_bp.route("/map")
 @public_bp.route("/map/<path:coords>")
 def map_view(coords=None):
@@ -97,15 +108,13 @@ def map_view(coords=None):
             except ValueError:
                 pass
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[
-            0
-        ]
+        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
     return render_template(
         "map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom
     )
 
 
-# ── Submit ─────────────────────────────────────────────────────────────────────
+# ── Submit ────────────────────────────────────────────────────────────────────
 @public_bp.route("/submit", methods=["GET", "POST"])
 def submit():
     if request.method == "GET":
@@ -228,7 +237,7 @@ def _insert_plaque_rows(
         placeholders = ", ".join("?" * len(cols))
 
         db.execute( f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals)
-        plaque_id = db.execute( "SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
+        plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
 
         saved = 0
         duplicates: list[str] = []
@@ -251,7 +260,7 @@ def _insert_plaque_rows(
     return plaque_id, slug, duplicates
 
 
-# ── Plaque detail ──────────────────────────────────────────────────────────────
+# ── Plaque detail ─────────────────────────────────────────────────────────────
 @public_bp.route("/plaque/<slug>")
 def plaque_detail(slug):
     with get_db() as db:
@@ -280,7 +289,7 @@ def plaque_detail(slug):
     return render_template("detail.html", plaque=plaque)
 
 
-# ── Tag page ───────────────────────────────────────────────────────────────────
+# ── Tag page ──────────────────────────────────────────────────────────────────
 @public_bp.route("/tag/<tag_name>")
 def tag_page(tag_name):
     tag_name = tag_name.strip().lower()
@@ -299,7 +308,7 @@ def tag_page(tag_name):
     return render_template("tag.html", tag=tag_name, plaques=plaques)
 
 
-# ── Random & About ─────────────────────────────────────────────────────────────
+# ── Random & About ────────────────────────────────────────────────────────────
 @public_bp.route("/random")
 def random_plaque():
     with get_db() as db:
@@ -315,7 +324,7 @@ def about():
     return render_template("about.html")
 
 
-# ── File serving ───────────────────────────────────────────────────────────────
+# ── File serving ──────────────────────────────────────────────────────────────
 @public_bp.route("/uploads/<path:filename>")
 def uploaded_file(filename):
     fp = os.path.join(UPLOAD_DIR, filename)

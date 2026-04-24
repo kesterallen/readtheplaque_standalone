@@ -38,7 +38,7 @@
           🕐 {{ p.created_at[:16].replace('T', ' ') }}
         </div>
         {% if p.description %}
-        <p class="qc-desc">{{ p.description }}</p>
+        <p class="qc-desc">{{ p.description | striptags }}</p>
         {% endif %}
       </div>
       <div class="qc-actions" id="actions-{{ p.id }}">

@@ -84,7 +84,6 @@ def plaques():
     offset = (page - 1) * per_page
 
     status = request.args.get("status", "all")
-    q = request.args.get("q", "").strip()
 
     where_clauses: list[str] = []
     params: list = []
@@ -94,6 +93,7 @@ def plaques():
     elif status == "pending":
         where_clauses.append("approved = 0")
 
+    q = request.args.get("q", "").strip()
     if q:
         where_clauses.append("title LIKE ?")
         params.append(f"%{q}%")
@@ -116,9 +116,7 @@ def plaques():
             f"SELECT * FROM plaques {where_sql} {order_sql} LIMIT ? OFFSET ?",
             (*params, per_page, offset),
         ).fetchall()
-        total = db.execute(
-            f"SELECT COUNT(*) FROM plaques {where_sql}", params
-        ).fetchone()[0]
+        total = db.execute(f"SELECT COUNT(*) FROM plaques {where_sql}", params).fetchone()[0]
 
     total_pages = max(1, -(-total // per_page))
     return render_template(

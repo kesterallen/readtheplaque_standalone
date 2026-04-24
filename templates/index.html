@@ -18,7 +18,7 @@
     <div class="featured-body">
       <h2>{{ featured.title }}</h2>
       {% if featured.description %}
-      <p class="featured-desc">{{ featured.description }}</p>
+      <p class="featured-desc">{{ featured.description | striptags }}</p>
       {% endif %}
     </div>
   </a>
