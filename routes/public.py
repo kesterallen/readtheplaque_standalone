@@ -307,6 +307,18 @@ def tag_page(tag_name):
     plaques = [plaque_to_dict(r) for r in rows]
     return render_template("tag.html", tag=tag_name, plaques=plaques)
 
+# ── Submitted By page ──────────────────────────────────────────────────────────────────
+@public_bp.route("/submitted_by/<submitted_by_name>")
+def submitted_by_page(submitted_by_name):
+    submitted_by_name = submitted_by_name.strip().lower()
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM plaques"
+            " WHERE submitted_by=? ORDER BY created_at DESC",
+            (submitted_by_name,),
+        ).fetchall()
+    plaques = [plaque_to_dict(r) for r in rows]
+    return render_template("submitted_by.html", submitted_by_name=submitted_by_name, plaques=plaques)
 
 # ── Random & About ────────────────────────────────────────────────────────────
 @public_bp.route("/random")

@@ -44,6 +44,7 @@ def init_db() -> None:
     CREATE INDEX IF NOT EXISTS idx_plaques_slug     ON plaques(slug);
     CREATE INDEX IF NOT EXISTS idx_plaques_location ON plaques(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_plaques_approved ON plaques(approved);
+    CREATE INDEX IF NOT EXISTS idx_plaques_submitted_by ON plaques(submitted_by);
 
     CREATE TABLE IF NOT EXISTS tags (
         id   INTEGER PRIMARY KEY AUTOINCREMENT,

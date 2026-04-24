@@ -9,7 +9,7 @@ def random_offset(magnitude: float=1.5) -> float:
     return magnitude * (random.random() - 0.5)
 
 
-fields = ("slug", "title", "description", "latitude", "longitude")
+fields = ("slug", "title", "description", "latitude", "longitude", "IGNORE_ME", "submitted_by")
 seed_data = [
     ['alamo-san', 'The Alamo', 'HERE ON THIS SITE IN 1836 THE DEFENDERS OF THE ALAMO MADE THEIR HEROIC STAND FOR TEXAS INDEPENDENCE', 29.426, -98.4861, 'sample_alamo.jpg', 'admin'],
     ['liberty-bell', 'Liberty Bell', 'PROCLAIM LIBERTY THROUGHOUT ALL THE LAND UNTO ALL THE INHABITANTS THEREOF — Leviticus XXV:X', 39.9496, -75.1503, 'sample_liberty.jpg', 'admin'],
