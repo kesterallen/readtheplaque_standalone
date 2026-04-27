@@ -26,6 +26,7 @@ MAX_MB = 16
 # ── App behaviour ──────────────────────────────────────────────────────────────
 NEARBY_LIMIT = 10
 PER_PAGE = 12
+PER_PAGE_ADMIN = 24
 
 # ── Secrets (override via environment in production) ──────────────────────────
 # TODO: Change these in production!

@@ -123,7 +123,7 @@ def submit():
     errors = []
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
-    submitted_by = request.form.get("submitted_by", "anonymous").strip() or "anonymous"
+    submitted_by = request.form.get("submitted_by", None)
     raw_tags = request.form.get("tags", "")
     tag_names = parse_tags(raw_tags)
 
@@ -224,18 +224,20 @@ def _insert_plaque_rows(
 
         # Build column list and values dynamically for optional fields
         cols = ["slug", "title", "description", "latitude", "longitude",
-                "image_file", "thumb_file", "submitted_by", "approved"]
+                "image_file", "thumb_file", "approved"]
         vals = [slug, title, description, lat, lng,
-                primary["filename"], primary["thumb"], submitted_by, 0]
+                primary["filename"], primary["thumb"], 0]
         if created_at is not None:
             cols.append("created_at")
             vals.append(created_at)
         if updated_at is not None:
             cols.append("updated_at")
             vals.append(updated_at)
+        if submitted_by is not None:
+            cols.append("submitted_by")
+            vals.append(submitted_by)
 
         placeholders = ", ".join("?" * len(cols))
-
         db.execute( f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals)
         plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
 
@@ -292,7 +294,7 @@ def plaque_detail(slug):
 # ── Tag page ──────────────────────────────────────────────────────────────────
 @public_bp.route("/tag/<tag_name>")
 def tag_page(tag_name):
-    tag_name = tag_name.strip().lower()
+    tag_name = tag_name.strip()
     with get_db() as db:
         tag = db.execute("SELECT * FROM tags WHERE name=?", (tag_name,)).fetchone()
         if not tag:
@@ -305,12 +307,12 @@ def tag_page(tag_name):
             (tag_name,),
         ).fetchall()
     plaques = [plaque_to_dict(r) for r in rows]
-    return render_template("tag.html", tag=tag_name, plaques=plaques)
+    return render_template("filter.html", name="Tag", item=tag_name, plaques=plaques)
 
 # ── Submitted By page ──────────────────────────────────────────────────────────────────
-@public_bp.route("/submitted_by/<submitted_by_name>")
+@public_bp.route("/submitted_by/<path:submitted_by_name>")
 def submitted_by_page(submitted_by_name):
-    submitted_by_name = submitted_by_name.strip().lower()
+    submitted_by_name = submitted_by_name.strip()
     with get_db() as db:
         rows = db.execute(
             "SELECT * FROM plaques"
@@ -318,7 +320,7 @@ def submitted_by_page(submitted_by_name):
             (submitted_by_name,),
         ).fetchall()
     plaques = [plaque_to_dict(r) for r in rows]
-    return render_template("submitted_by.html", submitted_by_name=submitted_by_name, plaques=plaques)
+    return render_template("filter.html", name="Submitter", item=submitted_by_name, plaques=plaques)
 
 # ── Random & About ────────────────────────────────────────────────────────────
 @public_bp.route("/random")

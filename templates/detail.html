@@ -51,7 +51,7 @@
 
       <div class="detail-meta">
         {% if plaque.submitted_by %}
-        <span>👤 Submitted by {{ plaque.submitted_by | safe }}</span>
+        <span><a href="/submitted_by/{{plaque.submitted_by}}">👤 Submitted by {{ plaque.submitted_by | safe }}</a></span>
         {% endif %}
         <span>📅 {{ plaque.created_at[:10] }}</span>
       </div>
