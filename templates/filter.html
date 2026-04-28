@@ -12,7 +12,7 @@
   </div>
 
   {% if not plaques %}
-  <p class="tag-empty">No approved plaques with this {{ name }} yet.</p>
+  <p class="tag-empty">No approved plaques with {{ name }} yet.</p>
   {% else %}
   <div class="plaque-grid">
     {% for p in plaques %}
