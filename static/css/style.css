@@ -456,7 +456,7 @@ body.page-map .site-banner { display: none; }
 
 .plaque-text-box {
   background: var(--surface-2);
-  border-left: 3px solid var(--accent);
+  /* border-left: 3px solid var(--accent); */
   padding: 16px 18px;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 14px;
