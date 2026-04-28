@@ -5,6 +5,7 @@ thumbs
 uploads
 *un~
 plaques.db*
+plaques.geojson
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
