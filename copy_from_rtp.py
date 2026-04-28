@@ -11,6 +11,8 @@
 #          /from-this-port-john-cabot-and-his-son
 #     "Submitted by: someone"
 #          /dickerman-steele-house
+#     "From the Flickr group ..."
+#          /historical-marker-for-george-washington-carver
 #     Plaque page not there anymore, so /dict/full returns a malformed 500 page (a message about a 500 error in a 200 response page):
 #          /harold-swindells-co-founder-of-bath-postal-museum-he-enjoyed-walking-in-this-park
 
@@ -29,7 +31,7 @@ import unicodedata
 import urllib.request
 
 
-# base_url = "https://readtheplaque-standalone.fly.dev"
+#base_url = "https://readtheplaque-standalone.fly.dev"
 base_url = "http://127.0.0.1:5000"  # N.B. no httpS
 
 rtp_geojson_filename = "./plaques.geojson"
@@ -37,6 +39,7 @@ with open(rtp_geojson_filename) as geojson_file:
     rtp_data = json.load(geojson_file)
 
 match_texts = [
+    "/plaque/historical-marker-for-george-washington-carver",
     "/plaque/crater-principal-del-volcan-poas",
     "/plaque/menehune-ditch",
     "/plaque/mike-haggerty-plaza",
@@ -63,7 +66,7 @@ results = {
 }
 
 #for i, rtp_plaque in enumerate([rtp_data["features"][i] for i in match_indices]):
-NUM_PLAQUES = 5
+NUM_PLAQUES = 20
 for i, rtp_plaque in enumerate(random.choices(rtp_data["features"], k=NUM_PLAQUES)):
 #for i, rtp_plaque in enumerate(reversed(rtp_data["features"][:10])):
     # Load from geojson
@@ -105,18 +108,20 @@ for i, rtp_plaque in enumerate(random.choices(rtp_data["features"], k=NUM_PLAQUE
 
     # If Submitted by/via in the text of the description:
     if submitted_by == "None":
-        regex = r"Submitted (by|via):?(.*)"
+        regex = r"(Submitted (by|via)|From the Flickr group):?(.+)"
         pattern = re.compile(regex, re.IGNORECASE | re.MULTILINE)
         soup = BeautifulSoup(description, "html.parser")
         text = soup.get_text(" ", strip=True)
         if match := re.search(pattern, text):
-            submitted_by = bleach.clean(match.group(2), strip=True).strip()
+            submitted_by = bleach.clean(match.group(3), strip=True).strip()
             # Turn accented characters into plain ASCII equivalents
             submitted_by = unicodedata.normalize("NFKD", submitted_by).encode("ascii", "ignore").decode("ascii")
             # Remove punctuation
             submitted_by = re.sub(r"[^A-Za-z0-9\s]+", " ", submitted_by)
             # Collapse repeated whitespace
             submitted_by = re.sub(r"\s+", " ", submitted_by).strip()
+            if "photo by" in submitted_by:
+                submitted_by = submitted_by.split(" photo by ")[0]
             print(f"Submitted by '{submitted_by}'")
         else:
             submitted_by = None
