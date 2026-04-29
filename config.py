@@ -66,7 +66,3 @@ ALLOWED_ATTRS: dict[str, list[str]] = {
 HCAPTCHA_SITEKEY = os.environ.get("HCAPTCHA_SITEKEY", "")
 HCAPTCHA_SECRET = os.environ.get("HCAPTCHA_SECRET", "")
 HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
-
-# Rate limiting: max submissions per IP per window
-RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "5"))
-RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "3600"))  # seconds
