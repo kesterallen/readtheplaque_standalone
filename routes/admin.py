@@ -17,7 +17,7 @@ from flask import (
 )
 from PIL import Image
 
-from config import ADMIN_PASSWORD, ALLOWED_EXT, PER_PAGE_ADMIN, THUMB_DIR, UPLOAD_DIR
+from config import ADMIN_PASSWORD, ALLOWED_EXT, PER_PAGE, THUMB_DIR, UPLOAD_DIR
 from database import get_db
 from models import (
     add_image_to_plaque,
@@ -61,35 +61,28 @@ def logout():
 
 
 # ── Queue ──────────────────────────────────────────────────────────────────────
-@admin_bp.route("/queue/<int:num>")
 @admin_bp.route("/queue")
-def queue(num: int = PER_PAGE_ADMIN):
+def queue():
     if not is_admin():
         return redirect(url_for("admin.login"))
+    page = max(1, request.args.get("page", 1, type=int))
+    offset = (page - 1) * PER_PAGE
     with get_db() as db:
+        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=0").fetchone()[
+            0
+        ]
         pending = db.execute(
-            "SELECT * FROM plaques WHERE approved=0 ORDER BY created_at ASC LIMIT ?",
-            (num,),
+            "SELECT * FROM plaques WHERE approved=0 ORDER BY created_at ASC"
+            " LIMIT ? OFFSET ?",
+            (PER_PAGE, offset),
         ).fetchall()
+    total_pages = max(1, -(-total // PER_PAGE))
     return render_template(
         "admin_queue.html",
         pending=[plaque_to_dict(p) for p in pending],
-        num=num,
-    )
-
-@admin_bp.route("/queue/rand/<int:num>")
-@admin_bp.route("/queue/rand")
-def queue_rand(num: int = PER_PAGE_ADMIN):
-    if not is_admin():
-        return redirect(url_for("admin.login"))
-    with get_db() as db:
-        pending = db.execute("SELECT * FROM plaques WHERE approved=0").fetchall()
-        if pending:
-            pending = random.choices(pending, k=num)
-    return render_template(
-        "admin_queue.html",
-        pending=[plaque_to_dict(p) for p in pending],
-        num=num,
+        total=total,
+        page=page,
+        total_pages=total_pages,
     )
 
 
@@ -100,7 +93,7 @@ def plaques():
         return redirect(url_for("admin.login"))
 
     page = max(1, request.args.get("page", 1, type=int))
-    per_page = PER_PAGE_ADMIN
+    per_page = 24
     offset = (page - 1) * per_page
 
     status = request.args.get("status", "all")
@@ -123,7 +116,7 @@ def plaques():
     sort_col = request.args.get("sort", "created_at")
     sort_dir = request.args.get("dir", "desc")
 
-    allowed_cols = {"title", "created_at", "submitted_by", "approved"}
+    allowed_cols = {"title", "created_at", "updated_at", "submitted_by", "approved"}
     if sort_col not in allowed_cols:
         sort_col = "created_at"
     if sort_dir not in ("asc", "desc"):

@@ -893,3 +893,7 @@ textarea { resize: vertical; min-height: 90px; }
 .ap-sort-link:hover { color: var(--accent); }
 .ap-sort-neutral { opacity: .35; font-size: 10px; }
 .ap-empty { text-align: center; padding: 32px; color: var(--text-muted); font-size: 14px; }
+
+/* ── Submitter link ───────────────────────────────────────────────────────────── */
+.submitter-link { color: var(--accent); text-decoration: none; }
+.submitter-link:hover { text-decoration: underline; }

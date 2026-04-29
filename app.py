@@ -6,11 +6,6 @@ All routes live in routes/, helpers in models.py, config in config.py,
 and DB setup in database.py.
 """
 
-# TODO: use code /admin/plaques? for this?
-# TODO: paginate /tag
-# TODO: paginate /submitted_by
-# TODO: paginate /admin/queue
-
 import os
 
 from flask import Flask

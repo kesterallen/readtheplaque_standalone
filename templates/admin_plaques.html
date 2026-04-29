@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/paginator.html" import paginator %}
 {% block title %}All Plaques — Read The Plaque Admin{% endblock %}
 
 {% block content %}
@@ -56,6 +57,7 @@
         <th><a class="ap-sort-link" href="{{ sort_url('approved') }}">Status {{ sort_icon('approved') }}</a></th>
         <th><a class="ap-sort-link" href="{{ sort_url('submitted_by') }}">Submitted by {{ sort_icon('submitted_by') }}</a></th>
         <th><a class="ap-sort-link" href="{{ sort_url('created_at') }}">Date {{ sort_icon('created_at') }}</a></th>
+        <th><a class="ap-sort-link" href="{{ sort_url('updated_at') }}">Updated {{ sort_icon('updated_at') }}</a></th>
         <th></th>
       </tr>
     </thead>
@@ -81,6 +83,7 @@
         </td>
         <td class="ap-meta-cell">{{ p.submitted_by or '—' }}</td>
         <td class="ap-date-cell">{{ p.created_at[:10] }}</td>
+        <td class="ap-date-cell">{% if p.updated_at is not none %}{{ p.updated_at[:10] }}{% endif %}</td>
         <td><a class="btn-edit" href="/admin/edit/{{ p.id }}">✏️ Edit</a></td>
       </tr>
       {% endfor %}
@@ -92,18 +95,7 @@
 
   {# ── Paginator (preserves sort/filter params) ───────────────────────────── #}
   {% set base_url = '/admin/plaques?sort=' ~ sort ~ '&dir=' ~ dir ~ '&status=' ~ status ~ '&q=' ~ (q|urlencode) %}
-  {% if total_pages > 1 %}
-  <nav class="paginator">
-    {% if page > 1 %}<a href="{{ base_url }}&page={{ page-1 }}">‹</a>{% else %}<span class="disabled">‹</span>{% endif %}
-    {% for p in range(1, total_pages + 1) %}
-      {% if p == page %}<span class="current">{{ p }}</span>
-      {% elif p == 1 or p == total_pages or (p >= page-2 and p <= page+2) %}<a href="{{ base_url }}&page={{ p }}">{{ p }}</a>
-      {% elif p == page-3 or p == page+3 %}<span class="ellipsis">…</span>
-      {% endif %}
-    {% endfor %}
-    {% if page < total_pages %}<a href="{{ base_url }}&page={{ page+1 }}">›</a>{% else %}<span class="disabled">›</span>{% endif %}
-  </nav>
-  {% endif %}
+  {{ paginator(page, total_pages, base_url) }}
 
 </div>
 {% endblock %}

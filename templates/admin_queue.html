@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/paginator.html" import paginator %}
 {% block title %}Approval Queue — Read The Plaque Admin{% endblock %}
 
 {% block extra_head %}
@@ -9,7 +10,7 @@
   <div class="queue-header">
     <div>
       <h1>Approval Queue</h1>
-      <p class="meta">{{ pending|length }} plaque{{ 's' if pending|length != 1 }} awaiting review ({{num}} displayed)</p>
+      <p class="meta">{{ total }} plaque{{ 's' if total != 1 }} awaiting review</p>
     </div>
     <div class="queue-header-links">
       <a href="/" class="logout-link">← Back to site</a>
@@ -56,6 +57,8 @@
     {% endfor %}
   </div>
   {% endif %}
+
+  {{ paginator(page, total_pages, "/admin/queue?") }}
 </div>
 {% endblock %}
 

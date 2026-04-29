@@ -78,6 +78,7 @@ def index(page=1):
         total_pages=total_pages,
     )
 
+
 # ── RSS Feed ──────────────────────────────────────────────────────────────────
 @public_bp.route("/rss")
 @public_bp.route("/feed")
@@ -92,6 +93,7 @@ def feed():
         "feed.xml",
         recent=recent,
     )
+
 
 # ── Map ───────────────────────────────────────────────────────────────────────
 @public_bp.route("/map")
@@ -108,7 +110,9 @@ def map_view(coords=None):
             except ValueError:
                 pass
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
+        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[
+            0
+        ]
     return render_template(
         "map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom
     )
@@ -123,7 +127,7 @@ def submit():
     errors = []
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
-    submitted_by = request.form.get("submitted_by", None)
+    submitted_by = request.form.get("submitted_by", "anonymous").strip() or "anonymous"
     raw_tags = request.form.get("tags", "")
     tag_names = parse_tags(raw_tags)
 
@@ -223,23 +227,43 @@ def _insert_plaque_rows(
         slug = _make_slug(title, request.form.get("slug"))
 
         # Build column list and values dynamically for optional fields
-        cols = ["slug", "title", "description", "latitude", "longitude",
-                "image_file", "thumb_file", "approved"]
-        vals = [slug, title, description, lat, lng,
-                primary["filename"], primary["thumb"], 0]
+        cols = [
+            "slug",
+            "title",
+            "description",
+            "latitude",
+            "longitude",
+            "image_file",
+            "thumb_file",
+            "submitted_by",
+            "approved",
+        ]
+        vals = [
+            slug,
+            title,
+            description,
+            lat,
+            lng,
+            primary["filename"],
+            primary["thumb"],
+            submitted_by,
+            0,
+        ]
         if created_at is not None:
             cols.append("created_at")
             vals.append(created_at)
         if updated_at is not None:
             cols.append("updated_at")
             vals.append(updated_at)
-        if submitted_by is not None:
-            cols.append("submitted_by")
-            vals.append(submitted_by)
 
         placeholders = ", ".join("?" * len(cols))
-        db.execute( f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals)
-        plaque_id = db.execute("SELECT id FROM plaques WHERE slug=?", (slug,)).fetchone()["id"]
+
+        db.execute(
+            f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals
+        )
+        plaque_id = db.execute(
+            "SELECT id FROM plaques WHERE slug=?", (slug,)
+        ).fetchone()["id"]
 
         saved = 0
         duplicates: list[str] = []
@@ -294,33 +318,71 @@ def plaque_detail(slug):
 # ── Tag page ──────────────────────────────────────────────────────────────────
 @public_bp.route("/tag/<tag_name>")
 def tag_page(tag_name):
-    tag_name = tag_name.strip()
+    tag_name = tag_name.strip().lower()
+    page = max(1, request.args.get("page", 1, type=int))
+    offset = (page - 1) * PER_PAGE
     with get_db() as db:
         tag = db.execute("SELECT * FROM tags WHERE name=?", (tag_name,)).fetchone()
         if not tag:
             abort(404)
+        total = db.execute(
+            "SELECT COUNT(*) FROM plaques p"
+            " JOIN plaque_tags pt ON pt.plaque_id = p.id"
+            " JOIN tags t ON t.id = pt.tag_id"
+            " WHERE t.name=? AND p.approved=1",
+            (tag_name,),
+        ).fetchone()[0]
         rows = db.execute(
             "SELECT p.* FROM plaques p"
             " JOIN plaque_tags pt ON pt.plaque_id = p.id"
             " JOIN tags t ON t.id = pt.tag_id"
-            " WHERE t.name=? AND p.approved=1 ORDER BY p.created_at DESC",
-            (tag_name,),
+            " WHERE t.name=? AND p.approved=1 ORDER BY p.created_at DESC"
+            " LIMIT ? OFFSET ?",
+            (tag_name, PER_PAGE, offset),
         ).fetchall()
     plaques = [plaque_to_dict(r) for r in rows]
-    return render_template("filter.html", name="Tag", item=tag_name, plaques=plaques)
+    total_pages = max(1, -(-total // PER_PAGE))
+    return render_template(
+        "filter.html",
+        filter_type="tag",
+        name=tag_name,
+        plaques=plaques,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+    )
 
-# ── Submitted By page ──────────────────────────────────────────────────────────────────
-@public_bp.route("/submitted_by/<path:submitted_by_name>")
-def submitted_by_page(submitted_by_name):
-    submitted_by_name = submitted_by_name.strip()
+
+# ── Submitter page ────────────────────────────────────────────────────────────
+@public_bp.route("/submitter/<path:submitter_name>")
+def submitter_page(submitter_name):
+    submitter_name = submitter_name.strip()
+    page = max(1, request.args.get("page", 1, type=int))
+    offset = (page - 1) * PER_PAGE
     with get_db() as db:
+        total = db.execute(
+            "SELECT COUNT(*) FROM plaques WHERE approved=1 AND submitted_by=?",
+            (submitter_name,),
+        ).fetchone()[0]
+        if not total:
+            abort(404)
         rows = db.execute(
-            "SELECT * FROM plaques"
-            " WHERE submitted_by=? ORDER BY created_at DESC",
-            (submitted_by_name,),
+            "SELECT * FROM plaques WHERE approved=1 AND submitted_by=?"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (submitter_name, PER_PAGE, offset),
         ).fetchall()
     plaques = [plaque_to_dict(r) for r in rows]
-    return render_template("filter.html", name="Submitter", item=submitted_by_name, plaques=plaques)
+    total_pages = max(1, -(-total // PER_PAGE))
+    return render_template(
+        "filter.html",
+        filter_type="submitter",
+        name=submitter_name,
+        plaques=plaques,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+    )
+
 
 # ── Random & About ────────────────────────────────────────────────────────────
 @public_bp.route("/random")

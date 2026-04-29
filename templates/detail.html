@@ -51,7 +51,8 @@
 
       <div class="detail-meta">
         {% if plaque.submitted_by %}
-        <span><a href="/submitted_by/{{plaque.submitted_by}}">👤 Submitted by {{ plaque.submitted_by | safe }}</a></span>
+        <span>👤 Submitted by <a href="/submitter/{{ plaque.submitted_by | urlencode }}" class="submitter-link">{{ plaque.submitted_by }}</a></span>
+        <!-- TODO: "safe" instead of "urlencode"??
         {% endif %}
         <span>📅 {{ plaque.created_at[:10] }}</span>
       </div>
