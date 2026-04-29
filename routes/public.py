@@ -14,7 +14,14 @@ from flask import (
     url_for,
 )
 
-from config import ALLOWED_EXT, THUMB_DIR, UPLOAD_DIR, PER_PAGE
+from config import ALLOWED_EXT, HCAPTCHA_SITEKEY, PER_PAGE, THUMB_DIR, UPLOAD_DIR
+from spam import (
+    check_content,
+    check_honeypot,
+    check_rate_limit,
+    HONEYPOT_FIELD,
+    verify_captcha,
+)
 from database import get_db
 from models import (
     _placeholder_jpeg,
@@ -122,7 +129,34 @@ def map_view(coords=None):
 @public_bp.route("/submit", methods=["GET", "POST"])
 def submit():
     if request.method == "GET":
-        return render_template("submit.html")
+        return render_template(
+            "submit.html",
+            hcaptcha_sitekey=HCAPTCHA_SITEKEY,
+            honeypot_field=HONEYPOT_FIELD,
+        )
+
+    # ── Spam checks ────────────────────────────────────────────────────────────
+    # Honeypot — bots fill this hidden field, humans never see it
+    if check_honeypot(request.form):
+        return jsonify(
+            {"ok": True, "slug": "pending", "pending": True}
+        )  # silent discard
+
+    # Rate limit
+    ip = (
+        request.headers.get("X-Forwarded-For", request.remote_addr or "")
+        .split(",")[0]
+        .strip()
+    )
+    rate_ok, rate_err = check_rate_limit(ip)
+    if not rate_ok:
+        return jsonify({"ok": False, "errors": [rate_err]}), 429
+
+    # hCaptcha
+    captcha_token = request.form.get("h-captcha-response", "")
+    captcha_ok, captcha_err = verify_captcha(captcha_token)
+    if not captcha_ok:
+        return jsonify({"ok": False, "errors": [captcha_err]}), 400
 
     errors = []
     title = request.form.get("title", "").strip()
@@ -142,6 +176,11 @@ def submit():
         errors.append("Title is required.")
     if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
         errors.append("Coordinates out of range.")
+
+    # Content spam check
+    content_ok, content_err = check_content(title, description)
+    if not content_ok:
+        errors.append(content_err)
 
     image_files = request.files.getlist("images")
     saved_images, img_errors = _save_images(image_files)

@@ -2,6 +2,9 @@
 {% block title %}Submit a Plaque — Read The Plaque{% endblock %}
 
 {% block extra_head %}
+{% if hcaptcha_sitekey %}
+<script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -60,11 +63,19 @@
     <p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>
   </div>
 
+  {# Honeypot — hidden from real users, filled by bots #}
+  <div class="honeypot-wrap">
+    <label for="{{ honeypot_field }}">Leave this empty</label>
+    <input type="text" id="{{ honeypot_field }}" name="{{ honeypot_field }}" autocomplete="off" tabindex="-1">
+  </div>
+
+  {% if hcaptcha_sitekey %}
+  <div class="h-captcha" data-sitekey="{{ hcaptcha_sitekey }}" data-theme="light"></div>
+  {% endif %}
+
   <button class="btn-submit" id="submitBtn">Submit Plaque →</button>
 </div>
 {% endblock %}
-
-<!-- TODO: recaptcha? -->
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>

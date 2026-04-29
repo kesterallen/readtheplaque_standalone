@@ -897,3 +897,14 @@ textarea { resize: vertical; min-height: 90px; }
 /* ── Submitter link ───────────────────────────────────────────────────────────── */
 .submitter-link { color: var(--accent); text-decoration: none; }
 .submitter-link:hover { text-decoration: underline; }
+
+/* ── Honeypot (must be visually hidden but not display:none — bots ignore that) */
+.honeypot-wrap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}

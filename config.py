@@ -26,7 +26,6 @@ MAX_MB = 16
 # ── App behaviour ──────────────────────────────────────────────────────────────
 NEARBY_LIMIT = 10
 PER_PAGE = 12
-PER_PAGE_ADMIN = 24
 
 # ── Secrets (override via environment in production) ──────────────────────────
 # TODO: Change these in production!
@@ -59,3 +58,15 @@ ALLOWED_TAGS: list[str] = [
 ALLOWED_ATTRS: dict[str, list[str]] = {
     "a": ["href", "title"],
 }
+
+# ── Spam / hCaptcha ────────────────────────────────────────────────────────────
+# Register free at https://dashboard.hcaptcha.com
+# Set HCAPTCHA_SECRET and HCAPTCHA_SITEKEY in your environment.
+# If HCAPTCHA_SECRET is empty, captcha verification is skipped (dev mode).
+HCAPTCHA_SITEKEY = os.environ.get("HCAPTCHA_SITEKEY", "")
+HCAPTCHA_SECRET = os.environ.get("HCAPTCHA_SECRET", "")
+HCAPTCHA_VERIFY_URL = "https://api.hcaptcha.com/siteverify"
+
+# Rate limiting: max submissions per IP per window
+RATE_LIMIT_MAX = int(os.environ.get("RATE_LIMIT_MAX", "5"))
+RATE_LIMIT_WINDOW = int(os.environ.get("RATE_LIMIT_WINDOW", "3600"))  # seconds
