@@ -28,13 +28,6 @@
       </div>
       {% endif %}
 
-<!-- Lightbox -->
-<div id="lightbox" onclick="closeLightbox()">
-  <button id="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
-  <img id="lightbox-img"
-       src="{{ plaque.images[0].image_url if plaque.images else plaque.image_url }}"
-       alt="{{ plaque.title }}" onclick="event.stopPropagation()">
-</div>
     </div>
     <div class="detail-info">
       <h1>{{ plaque.title }}</h1>
@@ -69,6 +62,13 @@
   </section>
 
   <a href="/map" class="back-link">← View all plaques on map</a>
+</div>
+<!-- Lightbox — must be outside any overflow:hidden parent -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()" aria-label="Close">✕</button>
+  <img id="lightbox-img"
+       src="{{ plaque.images[0].image_url if plaque.images else plaque.image_url }}"
+       alt="{{ plaque.title }}" onclick="event.stopPropagation()">
 </div>
 {% endblock %}
 
