@@ -146,14 +146,6 @@ def plaques():
 
 
 # ── Approve / reject ───────────────────────────────────────────────────────────
-@admin_bp.route("/approve/all", methods=["GET", "POST"])
-def approve_all():
-    # TODO: remove this endpoint
-    with get_db() as db:
-        db.execute("UPDATE plaques SET approved=1")
-    return jsonify({"ok": True})
-
-
 @admin_bp.route("/approve/<int:plaque_id>", methods=["POST"])
 def approve(plaque_id):
     if not is_admin():

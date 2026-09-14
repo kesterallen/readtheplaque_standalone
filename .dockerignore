@@ -1,5 +1,10 @@
+.envrc
 fly.toml
 .git/
+plaques.db
+*.pyc
 __pycache__/
-.envrc
+thumbs/
+uploads/
 .venv/
+*.zip
