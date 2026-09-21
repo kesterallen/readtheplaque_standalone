@@ -107,6 +107,14 @@ def main(mode, target):
         raise ValueError(f"mode cannot be {MODE}, allowed values are {MODES}")
 
     for i, rtp_plaque in enumerate(plaques):
+        # Skip the plaques already done before crash on 2026-sept-16
+        # slug should be plaque-campbell-house (20580/25531) on restart
+        i_reverse_countdown_last_good_before_crash  = 20581
+        i_reverse_countdown = len(rtp_data['features']) - i
+        if i_reverse_countdown > i_reverse_countdown_last_good_before_crash:
+            print(f"skipping {i_reverse_countdown} / {i_reverse_countdown_last_good_before_crash}")
+            continue
+
         # Load from geojson
         #
         props = rtp_plaque["properties"]
@@ -132,6 +140,7 @@ def main(mode, target):
                 continue
         except JSONDecodeError as e:
                 results["problem"][slug] = f"Bad JSON from response.json()"
+                time.sleep(60)
                 continue
 
         plaque_props = response.json()["features"][0]["properties"]

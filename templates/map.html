@@ -5,8 +5,7 @@
 {% block extra_head %}
 {# Preconnect to CDNs so the TCP+TLS handshakes happen in parallel #}
 <link rel="preconnect" href="https://unpkg.com" crossorigin>
-<link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
-<link rel="preconnect" href="https://a.tile.openstreetmap.org" crossorigin>
+
 
 {# Leaflet CSS — non-render-blocking: loads async, applied before paint via onload trick #}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -52,12 +51,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // ── Map ─────────────────────────────────────────────────────────────────────
   var map = L.map("map", { preferCanvas: true }).setView([{{ init_lat }}, {{ init_lng }}], {{ init_zoom }});
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    // Request tiles at native DPR but cap at 2× to save bandwidth
-    detectRetina: true,
-  }).addTo(map);
+  makeTileLayer().addTo(map);
 
   // ── Cluster group ────────────────────────────────────────────────────────────
   var clusters = L.markerClusterGroup({

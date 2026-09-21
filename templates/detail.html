@@ -78,10 +78,7 @@
 const lat = {{ plaque.latitude }};
 const lng = {{ plaque.longitude }};
 const m = L.map('miniMap', {zoomControl:true, scrollWheelZoom:false}).setView([lat,lng], 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 19,
-}).addTo(m);
+makeTileLayer().addTo(m);
 
 const icon = L.divIcon({
   className:'',

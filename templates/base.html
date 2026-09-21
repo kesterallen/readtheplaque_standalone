@@ -70,6 +70,26 @@
     document.getElementById('mobileNav').classList.toggle('open');
   });
 </script>
+<script>
+// Shared tile layer — uses Carto if API key is set, OSM otherwise.
+// Call makeTileLayer() instead of L.tileLayer() in every template.
+function makeTileLayer() {
+  var key = {{ (carto_api_key | default("")) | tojson }};
+  if (key) {
+    return L.tileLayer(
+      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=" + key,
+      { subdomains: "abcd", maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
+                   + '© <a href="https://carto.com/attributions">CARTO</a>' }
+    );
+  }
+  return L.tileLayer(
+    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }
+  );
+}
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

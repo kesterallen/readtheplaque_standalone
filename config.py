@@ -59,6 +59,9 @@ ALLOWED_ATTRS: dict[str, list[str]] = {
     "a": ["href", "title"],
 }
 
+# ── Map tiles ─────────────────────────────────────────────────────────────────
+CARTO_API_KEY = os.environ.get("CARTO_API_KEY", "")
+
 # ── Spam / hCaptcha ────────────────────────────────────────────────────────────
 # Register free at https://dashboard.hcaptcha.com
 # Set HCAPTCHA_SECRET and HCAPTCHA_SITEKEY in your environment.

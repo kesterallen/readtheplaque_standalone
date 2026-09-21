@@ -10,7 +10,7 @@ import os
 
 from flask import Flask
 
-from config import MAX_MB, SECRET_KEY, UPLOAD_DIR
+from config import CARTO_API_KEY, MAX_MB, SECRET_KEY, UPLOAD_DIR
 from database import init_db
 from routes import register_blueprints
 
@@ -23,6 +23,10 @@ app.json.compact = True
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 register_blueprints(app)
+
+@app.context_processor
+def inject_globals():
+    return {"carto_api_key": CARTO_API_KEY}
 
 # Initialise DB at import time so Gunicorn picks it up on startup
 init_db()

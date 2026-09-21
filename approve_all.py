@@ -20,11 +20,20 @@ from database import get_db, init_db
 
 def main():
     parser = argparse.ArgumentParser(description="Approve all pending plaques.")
+    parser.add_argument("--count", action="store_true", help="Count plaques")
     parser.add_argument("--yes", action="store_true", help="Skip confirmation prompt")
     parser.add_argument("--dry-run", action="store_true", help="Show pending plaques without approving")
     args = parser.parse_args()
 
     init_db()
+
+    if args.count:
+        with get_db() as db:
+            pending = db.execute("SELECT count(*) FROM plaques WHERE approved=0").fetchone()[0]
+            approved = db.execute("SELECT count(*) FROM plaques WHERE approved!=0").fetchone()[0]
+
+            print(f"pending {pending}, approved {approved}")
+            return
 
     with get_db() as db:
         pending = db.execute(

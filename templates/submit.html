@@ -136,9 +136,7 @@ function handleFile(file) { handleFiles([file]); }
 
 // ── Picker map ────────────────────────────────────────────────────────────────
 const pickerMap = L.map('locationPicker').setView([20, 0], 1);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 19
-}).addTo(pickerMap);
+makeTileLayer().addTo(pickerMap);
 
 let pickerMarker;
 pickerMap.on('click', e => setCoords(e.latlng.lat, e.latlng.lng));
