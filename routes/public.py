@@ -116,9 +116,7 @@ def map_view(coords=None):
             except ValueError:
                 pass
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[
-            0
-        ]
+        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
     return render_template(
         "map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom
     )

@@ -77,7 +77,7 @@ function makeTileLayer() {
   var key = {{ (carto_api_key | default("")) | tojson }};
   if (key) {
     return L.tileLayer(
-      "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?api_key=" + key,
+      "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=" + key,
       { subdomains: "abcd", maxZoom: 19,
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
                    + '© <a href="https://carto.com/attributions">CARTO</a>' }
