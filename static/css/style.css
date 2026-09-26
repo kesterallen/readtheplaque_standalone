@@ -838,15 +838,7 @@ textarea { resize: vertical; min-height: 90px; }
 /* ── Alert box (submit page) ─────────────────────────────────────────────────── */
 .alert-box { display: none; }
 
-/* ── Map pin (detail page divIcon) ──────────────────────────────────────────── */
-.map-pin {
-  width: 26px; height: 26px;
-  border-radius: 50% 50% 50% 0;
-  background: var(--accent);
-  border: 3px solid #fff;
-  transform: rotate(-45deg);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-}
+/* .map-pin removed — MapLibre Marker used instead */
 
 /* ── Admin plaques table cells ───────────────────────────────────────────────── */
 .ap-total { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
@@ -908,3 +900,13 @@ textarea { resize: vertical; min-height: 90px; }
   opacity: 0;
   pointer-events: none;
 }
+
+/* MapLibre popup overrides */
+.maplibregl-popup-content { padding: 0 !important; overflow: hidden; border-radius: 2px !important; }
+.maplibregl-popup-close-button { color: var(--text-muted); font-size: 16px; padding: 4px 8px; z-index: 1; }
+.popup-img   { width: 240px; height: 140px; object-fit: cover; display: block; }
+.popup-body  { padding: 10px 14px; }
+.popup-title { font-size: 14px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.popup-link  { font-size: 12px; color: var(--accent); text-decoration: none; font-weight: 600; }
+.popup-link:hover { text-decoration: underline; }
+.map-popup-img-wrap { position: relative; }

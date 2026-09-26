@@ -70,24 +70,27 @@
     document.getElementById('mobileNav').classList.toggle('open');
   });
 </script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script>
-// Shared tile layer — uses Carto if API key is set, OSM otherwise.
-// Call makeTileLayer() instead of L.tileLayer() in every template.
-function makeTileLayer() {
-  var key = {{ (carto_api_key | default("")) | tojson }};
-  if (key) {
-    return L.tileLayer(
-      "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=" + key,
-      { subdomains: "abcd", maxZoom: 19,
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> '
-                   + '© <a href="https://carto.com/attributions">CARTO</a>' }
-    );
+// Shared MapLibre helpers available to all templates.
+var _cartoKey = {{ (carto_api_key | default("")) | tojson }};
+
+function mapStyle() {
+  if (_cartoKey) {
+    return "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
   }
-  return L.tileLayer(
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { maxZoom: 19,
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }
-  );
+  return "https://demotiles.maplibre.org/style.json";
+}
+
+function makeMap(container, opts) {
+  var o = opts || {};
+  return new maplibregl.Map({
+    container: container,
+    style: mapStyle(),
+    center: o.center || [0, 20],
+    zoom: o.zoom !== undefined ? o.zoom : 2,
+  });
 }
 </script>
 {% block scripts %}{% endblock %}

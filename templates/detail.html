@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ plaque.title }} — Read The Plaque{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-{% endblock %}
+{% block extra_head %}{% endblock %}
 
 {% block content %}
 <div class="detail-page">
@@ -73,20 +71,18 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const lat = {{ plaque.latitude }};
-const lng = {{ plaque.longitude }};
-const m = L.map('miniMap', {zoomControl:true, scrollWheelZoom:false}).setView([lat,lng], 13);
-makeTileLayer().addTo(m);
-
-const icon = L.divIcon({
-  className:'',
-  html:'<div class="map-pin"></div>',
-  iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-28]
+var _lat = {{ plaque.latitude }};
+var _lng = {{ plaque.longitude }};
+var miniMap = makeMap('miniMap', { center: [_lng, _lat], zoom: 13 });
+miniMap.addControl(new maplibregl.NavigationControl(), 'top-right');
+miniMap.scrollZoom.disable();
+miniMap.on('load', function () {
+  new maplibregl.Marker({ color: '#d9534f' })
+    .setLngLat([_lng, _lat])
+    .setPopup(new maplibregl.Popup().setHTML('<strong>{{ plaque.title | e }}</strong>'))
+    .addTo(miniMap);
 });
-L.marker([lat,lng],{icon}).addTo(m)
- .bindPopup('<strong>{{ plaque.title }}</strong>').openPopup();
 </script>
 <script>
 function openLightbox(src) {

@@ -2,7 +2,6 @@
 {% block title %}Edit — {{ plaque.title }} — Read The Plaque Admin{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 {% endblock %}
 
 {% block content %}
@@ -116,16 +115,17 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 // ── Map picker ────────────────────────────────────────────────────────────────
 var initLat = {{ plaque.latitude }};
 var initLng = {{ plaque.longitude }};
 
-var pickerMap = L.map('coordPicker').setView([initLat, initLng], 10);
-makeTileLayer().addTo(pickerMap);
+var pickerMap = makeMap('coordPicker', { center: [initLng, initLat], zoom: 10 });
+pickerMap.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-var marker = L.marker([initLat, initLng], { draggable: true }).addTo(pickerMap);
+var marker = new maplibregl.Marker({ color: '#d9534f', draggable: true })
+  .setLngLat([initLng, initLat])
+  .addTo(pickerMap);
 
 function setCoords(lat, lng) {
   document.getElementById('latitude').value  = lat.toFixed(6);
@@ -133,13 +133,13 @@ function setCoords(lat, lng) {
 }
 
 marker.on('dragend', function() {
-  var ll = marker.getLatLng();
+  var ll = marker.getLngLat();
   setCoords(ll.lat, ll.lng);
 });
 
 pickerMap.on('click', function(e) {
-  marker.setLatLng(e.latlng);
-  setCoords(e.latlng.lat, e.latlng.lng);
+  marker.setLngLat(e.lngLat);
+  setCoords(e.lngLat.lat, e.lngLat.lng);
 });
 
 ['latitude', 'longitude'].forEach(function(id) {
@@ -147,7 +147,7 @@ pickerMap.on('click', function(e) {
     var lat = parseFloat(document.getElementById('latitude').value);
     var lng = parseFloat(document.getElementById('longitude').value);
     if (!isNaN(lat) && !isNaN(lng)) {
-      marker.setLatLng([lat, lng]);
+      marker.setLngLat([lng, lat]);
       pickerMap.setView([lat, lng]);
     }
   });

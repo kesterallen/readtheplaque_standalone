@@ -2,11 +2,7 @@
 {% from "macros/paginator.html" import paginator %}
 {% block title %}Read The Plaque{% endblock %}
 
-{% block extra_head %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
-{% endblock %}
+{% block extra_head %}{% endblock %}
 
 {% block content %}
 
@@ -123,38 +119,67 @@ document.addEventListener('click', e => {
 });
 </script>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-var homeMap = L.map('home-map', { zoomControl: true }).setView([20, 10], 2);
+var homeMap = makeMap('home-map', { center: [10, 20], zoom: 2 });
+homeMap.addControl(new maplibregl.NavigationControl(), 'top-right');
+homeMap.scrollZoom.disable();
 
-makeTileLayer().addTo(homeMap);
-
-// Hide the attribution control when the map scrolls out of view
-var attrControl = homeMap.attributionControl.getContainer();
+// Hide attribution when map scrolls out of view
 new IntersectionObserver(function(entries) {
-  attrControl.style.visibility = entries[0].isIntersecting ? 'visible' : 'hidden';
+  var ctrl = document.querySelector('#home-map .maplibregl-ctrl-attrib');
+  if (ctrl) ctrl.style.visibility = entries[0].isIntersecting ? 'visible' : 'hidden';
 }, { threshold: 0 }).observe(document.getElementById('home-map'));
 
-var clusters = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 36 });
-
-// Use the plaques already rendered on the page instead of a separate API call
 var pagePlaques = {{ (([featured] if featured else []) + recent) | tojson }};
 
-pagePlaques.forEach(function(p) {
-  if (!p || p.latitude == null || p.longitude == null) return;
-  L.marker([p.latitude, p.longitude])
-    .bindPopup(
-      '<div class="hp-popup">' +
-      '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
-      '<div class="hp-popup-body">' +
-      '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
-      '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">Read plaque →</a>' +
-      '</div></div>',
-      { maxWidth: 220, minWidth: 200 }
-    )
-    .addTo(clusters);
+homeMap.on('load', function () {
+  var geojson = {
+    type: 'FeatureCollection',
+    features: pagePlaques
+      .filter(function(p) { return p && p.latitude != null && p.longitude != null; })
+      .map(function(p) {
+        return {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+          properties: { title: p.title, slug: p.slug,
+                        thumb_url: p.thumb_url, image_url: p.image_url }
+        };
+      })
+  };
+
+  homeMap.addSource('home-plaques', { type: 'geojson', data: geojson, generateId: true });
+
+  // Density glow
+  homeMap.addLayer({
+    id: 'home-glow', type: 'circle', source: 'home-plaques',
+    paint: { 'circle-radius': 10, 'circle-color': '#d9534f',
+             'circle-opacity': 0.15, 'circle-blur': 0.5 }
+  });
+
+  // Solid dot
+  homeMap.addLayer({
+    id: 'home-dot', type: 'circle', source: 'home-plaques',
+    paint: { 'circle-radius': 5, 'circle-color': '#d9534f',
+             'circle-opacity': 0.85,
+             'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' }
+  });
+
+  var popup = new maplibregl.Popup({ closeButton: false, maxWidth: '220px' });
+
+  homeMap.on('click', 'home-dot', function(e) {
+    var p = e.features[0].properties;
+    popup.setLngLat(e.features[0].geometry.coordinates.slice())
+      .setHTML(
+        '<div class="hp-popup">' +
+        '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
+        '<div class="hp-popup-body">' +
+        '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
+        '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">Read plaque →</a>' +
+        '</div></div>'
+      ).addTo(homeMap);
+  });
+  homeMap.on('mouseenter', 'home-dot', function() { homeMap.getCanvas().style.cursor = 'pointer'; });
+  homeMap.on('mouseleave', 'home-dot', function() { homeMap.getCanvas().style.cursor = ''; });
 });
-homeMap.addLayer(clusters);
 </script>
 {% endblock %}
