@@ -181,12 +181,14 @@ homeMap.on('load', function () {
     var p = e.features[0].properties;
     popup.setLngLat(e.features[0].geometry.coordinates.slice())
       .setHTML(
-        '<div class="hp-popup">' +
-        '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
-        '<div class="hp-popup-body">' +
-        '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
-        '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">Read plaque →</a>' +
-        '</div></div>'
+        '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">"' +
+          '<div class="hp-popup">' +
+            '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
+            '<div class="hp-popup-body">' +
+              '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
+            '</div>' +
+          '</div>' +
+        '</a>'
       ).addTo(homeMap);
   });
   homeMap.on('mouseenter', 'home-dot', function() { homeMap.getCanvas().style.cursor = 'pointer'; });
