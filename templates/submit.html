@@ -49,6 +49,17 @@
   <div class="form-section">
     <h2>📍 Pin Location</h2>
     <p class="coord-hint">Coordinates are filled automatically if your photo has GPS data. Otherwise click the map or type them in.</p>
+
+    <div class="form-group">
+      <label for="addressSearch">Search for an address</label>
+      <input type="text" id="addressSearch"
+             placeholder="e.g. 123 Main St, Boston, MA"
+             autocomplete="off">
+      <div id="addressResults" class="address-results" role="listbox"
+           aria-label="Address search results"></div>
+      <p class="field-hint">Search OpenStreetMap for an address, then select a result.</p>
+    </div>
+
     <div id="locationPicker"></div>
     <div class="coord-row coord-row--spaced">
       <div class="form-group form-group--tight">
@@ -151,6 +162,94 @@ function setCoords(lat, lng) {
     .addTo(pickerMap);
   pickerMap.flyTo({ center: [lng, lat], zoom: Math.max(pickerMap.getZoom(), 12) });
 }
+
+// ── Address search (Nominatim / OpenStreetMap) ───────────────────────────────
+const addressSearch  = document.getElementById('addressSearch');
+const addressResults = document.getElementById('addressResults');
+let addressSearchTimer = null;
+let addressSearchController = null;
+
+addressSearch.addEventListener('input', () => {
+  clearTimeout(addressSearchTimer);
+
+  const query = addressSearch.value.trim();
+  addressResults.innerHTML = '';
+  addressResults.style.display = 'none';
+
+  if (query.length < 3) return;
+
+  addressSearchTimer = setTimeout(() => searchAddress(query), 300);
+});
+
+async function searchAddress(query) {
+  if (addressSearchController) addressSearchController.abort();
+  addressSearchController = new AbortController();
+
+  try {
+    const params = new URLSearchParams({
+      q: query,
+      format: 'jsonv2',
+      limit: '5',
+      addressdetails: '1'
+    });
+
+    const res = await fetch(
+      'https://nominatim.openstreetmap.org/search?' + params.toString(),
+      {
+        signal: addressSearchController.signal,
+        headers: { 'Accept': 'application/json' }
+      }
+    );
+
+    if (!res.ok) throw new Error('Nominatim request failed');
+
+    const results = await res.json();
+    addressResults.innerHTML = '';
+
+    if (!results.length) {
+      addressResults.style.display = 'none';
+      return;
+    }
+
+    results.forEach(result => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'address-result';
+      item.textContent = result.display_name;
+      item.setAttribute('role', 'option');
+
+      item.addEventListener('click', () => {
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+
+        if (!isNaN(lat) && !isNaN(lng)) {
+          addressSearch.value = result.display_name;
+          setCoords(lat, lng);
+          addressResults.innerHTML = '';
+          addressResults.style.display = 'none';
+        }
+      });
+
+      addressResults.appendChild(item);
+    });
+
+    addressResults.style.display = 'block';
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Address search failed:', err);
+      addressResults.innerHTML = '';
+      addressResults.style.display = 'none';
+    }
+  }
+}
+
+// Close search results when clicking elsewhere on the page.
+document.addEventListener('click', e => {
+  if (!addressSearch.contains(e.target) && !addressResults.contains(e.target)) {
+    addressResults.style.display = 'none';
+  }
+});
+
 
 // Sync manual coord inputs → map
 ['latitude', 'longitude'].forEach(id => {
