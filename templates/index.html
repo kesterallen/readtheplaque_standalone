@@ -149,6 +149,18 @@ homeMap.on('load', function () {
 
   homeMap.addSource('home-plaques', { type: 'geojson', data: geojson, generateId: true });
 
+  // Fit map to the bounds of the plaques
+  if (geojson.features.length) {
+    var lngs = geojson.features.map(function(f) { return f.geometry.coordinates[0]; });
+    var lats = geojson.features.map(function(f) { return f.geometry.coordinates[1]; });
+    var bounds = [
+      [Math.min.apply(null, lngs), Math.min.apply(null, lats)],  // sw
+      [Math.max.apply(null, lngs), Math.max.apply(null, lats)]   // ne
+    ];
+    homeMap.fitBounds(bounds, { padding: 40, maxZoom: 14, duration: 0 });
+  }
+
+
   // Density glow
   homeMap.addLayer({
     id: 'home-glow', type: 'circle', source: 'home-plaques',
