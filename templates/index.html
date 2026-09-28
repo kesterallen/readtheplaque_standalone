@@ -122,7 +122,6 @@ document.addEventListener('click', e => {
 <script>
 var homeMap = makeMap('home-map', { center: [10, 20], zoom: 2 });
 homeMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-homeMap.scrollZoom.disable();
 
 // Hide attribution when map scrolls out of view
 new IntersectionObserver(function(entries) {

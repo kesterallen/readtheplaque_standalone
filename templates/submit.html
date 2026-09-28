@@ -190,14 +190,21 @@ async function searchAddress(query) {
       q: query,
       format: 'jsonv2',
       limit: '5',
-      addressdetails: '1'
+      addressdetails: '1',
+      // Required by Nominatim usage policy: identifies this app
+      // https://operations.osmfoundation.org/policies/nominatim/
+      email: 'info@readtheplaque.com'
     });
 
     const res = await fetch(
       'https://nominatim.openstreetmap.org/search?' + params.toString(),
       {
         signal: addressSearchController.signal,
-        headers: { 'Accept': 'application/json' }
+        headers: {
+          'Accept': 'application/json',
+          // Referer helps Nominatim identify the source application
+          'Referer': 'https://readtheplaque.com'
+        }
       }
     );
 
