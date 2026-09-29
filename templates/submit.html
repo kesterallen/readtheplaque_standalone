@@ -10,7 +10,7 @@
 {% block content %}
 <div class="submit-page">
   <h1>Submit a Plaque</h1>
-  <p class="sub">Found an interesting historical marker? Add it to the map and help document history for everyone.</p>
+  <p id="announceBox" class="sub">Found an interesting historical marker? Add it to the map and help document history for everyone.</p>
 
   <div id="alertBox" class="alert-box"></div>
 
@@ -279,6 +279,7 @@ document.getElementById('geolocateBtn').addEventListener('click', e => {
 document.getElementById('submitBtn').addEventListener('click', async () => {
   const btn      = document.getElementById('submitBtn');
   const alertBox = document.getElementById('alertBox');
+  const announceBox = document.getElementById('announceBox');
   alertBox.style.display = 'none';
 
   const fd = new FormData();
@@ -300,6 +301,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
       alertBox.className = 'alert alert-success';
       alertBox.innerHTML = '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>Thanks! Your plaque has been submitted and is awaiting approval. It will appear on the map once reviewed.<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
       alertBox.style.display = 'block';
+      announceBox.innerHTML = '';
       clearForm();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
