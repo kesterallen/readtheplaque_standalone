@@ -298,8 +298,9 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     const data = await res.json();
     if (data.ok) {
       alertBox.className = 'alert alert-success';
-      alertBox.innerHTML = '🎉 Thanks! Your plaque has been submitted and is awaiting approval. It will appear on the map once reviewed.';
+      alertBox.innerHTML = '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>Thanks! Your plaque has been submitted and is awaiting approval. It will appear on the map once reviewed.<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
       alertBox.style.display = 'block';
+      clearForm();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       showErrors(data.errors || ['Submission failed.']);
@@ -311,6 +312,25 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     btn.textContent = 'Submit Plaque →';
   }
 });
+
+function clearForm() {
+  // Text fields
+  ['title', 'description', 'submittedBy', 'tags', 'latitude', 'longitude', 'addressSearch']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+
+  // Image previews and file input
+  previewWrap.innerHTML = '';
+  previewWrap.style.display = 'none';
+  fileInput.value = '';
+
+  // Map marker and coords
+  if (pickerMarker) { pickerMarker.remove(); pickerMarker = null; }
+  pickerMap.flyTo({ center: [0, 20], zoom: 1 });
+
+  // Address search results
+  const addrResults = document.getElementById('addressResults');
+  if (addrResults) addrResults.style.display = 'none';
+}
 
 function showErrors(errs) {
   const alertBox = document.getElementById('alertBox');

@@ -70,7 +70,7 @@
             {% if p.approved %}
             <a href="/plaque/{{ p.slug }}" target="_blank">{{ p.title }}</a>
             {% else %}
-            {{ p.title }}
+            {{ p.title }} -- {{ p.slug }}
             {% endif %}
           </div>
         </td>
