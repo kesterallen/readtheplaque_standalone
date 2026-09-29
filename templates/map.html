@@ -3,8 +3,13 @@
 {% block title %}Big Map — Read The Plaque{% endblock %}
 
 {% block content %}
+
 <div class="map-wrapper">
   <div id="map"></div>
+
+  <div class="map-loading" id="mapLoading" role="status" aria-label="Loading map">
+    <div class="map-spinner" aria-hidden="true"></div>
+  </div>
 
   <div class="map-search-bar">
     <input type="text" id="mapSearch" placeholder="Search plaques…" autocomplete="off">
@@ -15,11 +20,25 @@
 {% endblock %}
 
 {% block scripts %}
+
 <script>
 function esc(s) {
   return String(s || '')
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/*
+ * Delay showing the spinner by 150ms. This prevents a visible flash
+ * when the map and plaque data load quickly.
+ */
+var mapLoadingTimer = setTimeout(function () {
+  document.getElementById('mapLoading').classList.add('is-visible');
+}, 150);
+
+function hideMapLoading() {
+  clearTimeout(mapLoadingTimer);
+  document.getElementById('mapLoading').classList.remove('is-visible');
 }
 
 var map = makeMap('map', {
@@ -34,7 +53,10 @@ map.on('load', function () {
 
   // ── Load all plaque locations ───────────────────────────────────────────────
   fetch('/api/plaques/geo')
-    .then(function (r) { return r.json(); })
+    .then(function (r) {
+      if (!r.ok) throw new Error('Failed to load plaques');
+      return r.json();
+    })
     .then(function (gj) {
 
       map.addSource('plaques', { type: 'geojson', data: gj, generateId: true });
@@ -131,11 +153,12 @@ map.on('load', function () {
         popup
           .setLngLat(coords)
           .setHTML(
-            '<div class="popup-body">' +
-            '<img class="map-popup-img" alt="">' +
-            '<p class="popup-title">' + esc(props.title) + '</p>' +
-            '<a class="popup-link" href="/plaque/' + esc(props.slug) + '">Read full plaque →</a>' +
-            '</div>'
+            '<a class="popup-link" href="/plaque/' + esc(props.slug) + '">' +
+              '<div class="popup-body">' +
+                '<img class="map-popup-img" alt="' + esc(props.title) + '">' +
+                  '<p class="popup-title">' + esc(props.title) + '</p>' +
+                '</div>' +
+            '</a>'
           )
           .addTo(map);
 
@@ -154,6 +177,15 @@ map.on('load', function () {
         map.flyTo({ center: e.features[0].geometry.coordinates, zoom: Math.max(map.getZoom() + 2, 8) });
       });
 
+      /*
+       * Wait until MapLibre has rendered the newly-added plaque layers
+       * before removing the loading overlay.
+       */
+      map.once('idle', hideMapLoading);
+    })
+    .catch(function (err) {
+      console.error('Failed to load plaques:', err);
+      hideMapLoading();
     });
 
   // ── Search ──────────────────────────────────────────────────────────────────
@@ -207,4 +239,6 @@ map.on('load', function () {
 
 }); // map.on('load')
 </script>
+
 {% endblock %}
+
