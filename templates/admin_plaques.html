@@ -59,6 +59,7 @@
         <th><a class="ap-sort-link" href="{{ sort_url('created_at') }}">Date {{ sort_icon('created_at') }}</a></th>
         <th><a class="ap-sort-link" href="{{ sort_url('updated_at') }}">Updated {{ sort_icon('updated_at') }}</a></th>
         <th></th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -85,6 +86,11 @@
         <td class="ap-date-cell">{{ p.created_at[:10] }}</td>
         <td class="ap-date-cell">{% if p.updated_at is not none %}{{ p.updated_at[:10] }}{% endif %}</td>
         <td><a class="btn-edit" href="/admin/edit/{{ p.id }}">✏️ Edit</a></td>
+        <td>
+          {% if not p.approved %}
+          <button class="btn-reject" data-id="{{ p.id }}" data-title="{{ p.title | e }}">🗑 Reject</button>
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
       {% if not plaques %}
@@ -98,4 +104,27 @@
   {{ paginator(page, total_pages, base_url) }}
 
 </div>
+{% block scripts %}
+<script>
+document.querySelectorAll('.btn-reject').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id    = btn.dataset.id;
+    var title = btn.dataset.title;
+    if (!confirm('Reject and delete "' + title + '"? This cannot be undone.')) return;
+    btn.disabled = true;
+    fetch('/admin/reject/' + id, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          btn.closest('tr').remove();
+        } else {
+          alert('Reject failed: ' + (data.error || 'unknown error'));
+          btn.disabled = false;
+        }
+      })
+      .catch(function() { alert('Network error'); btn.disabled = false; });
+  });
+});
+</script>
+{% endblock %}
 {% endblock %}

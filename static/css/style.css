@@ -944,6 +944,15 @@ textarea { resize: vertical; min-height: 90px; }
   background: var(--surface, #f5f5f5);
 }
 
+/* ── Reject button (admin plaques table) ─────────────────────────────────────── */
+.btn-reject {
+  padding: 4px 10px; font-size: 12px; font-family: inherit; cursor: pointer;
+  background: #fdf0f0; color: var(--accent); border: 1px solid var(--accent);
+  transition: background .12s, color .12s; white-space: nowrap;
+}
+.btn-reject:hover { background: var(--accent); color: #fff; }
+.btn-reject:disabled { opacity: .5; cursor: not-allowed; }
+
 .map-loading {
   position: absolute;
   inset: 0;
