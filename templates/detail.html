@@ -76,7 +76,6 @@ var _lat = {{ plaque.latitude }};
 var _lng = {{ plaque.longitude }};
 var miniMap = makeMap('miniMap', { center: [_lng, _lat], zoom: 13 });
 miniMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-miniMap.scrollZoom.disable();
 miniMap.on('load', function () {
   new maplibregl.Marker({ color: '#d9534f' })
     .setLngLat([_lng, _lat])
