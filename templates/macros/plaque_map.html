@@ -1,0 +1,6 @@
+{% macro plaque_map(map_id, plaques, height="300px") %}
+<div id="{{ map_id }}" class="plaque-map-widget" style="height:{{ height }}"></div>
+<script>
+(window.__plaqueMaps = window.__plaqueMaps || {})[{{ map_id | tojson }}] = {{ plaques | tojson }};
+</script>
+{% endmacro %}
