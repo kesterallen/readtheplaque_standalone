@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/paginator.html" import paginator %}
+{% from "macros/plaque_map.html" import plaque_map %}
 {% block title %}Read The Plaque{% endblock %}
 
 {% block extra_head %}{% endblock %}
@@ -54,7 +55,7 @@
   <div class="map-section-header">
     <h2>Map of this page's plauqes (Explore all {{ total }} plaques on <a href="/map"> the big map</a>):</h2>
   </div>
-  <div id="home-map"></div>
+  {{ plaque_map("home-map", ([featured] if featured else []) + recent) }}
 </section>
 
 <!-- Paginator -->
@@ -119,80 +120,4 @@ document.addEventListener('click', e => {
 });
 </script>
 
-<script>
-var homeMap = makeMap('home-map', { center: [10, 20], zoom: 2 });
-homeMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-// Hide attribution when map scrolls out of view
-new IntersectionObserver(function(entries) {
-  var ctrl = document.querySelector('#home-map .maplibregl-ctrl-attrib');
-  if (ctrl) ctrl.style.visibility = entries[0].isIntersecting ? 'visible' : 'hidden';
-}, { threshold: 0 }).observe(document.getElementById('home-map'));
-
-var pagePlaques = {{ (([featured] if featured else []) + recent) | tojson }};
-
-homeMap.on('load', function () {
-  var geojson = {
-    type: 'FeatureCollection',
-    features: pagePlaques
-      .filter(function(p) { return p && p.latitude != null && p.longitude != null; })
-      .map(function(p) {
-        return {
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
-          properties: { title: p.title, slug: p.slug,
-                        thumb_url: p.thumb_url, image_url: p.image_url }
-        };
-      })
-  };
-
-  homeMap.addSource('home-plaques', { type: 'geojson', data: geojson, generateId: true });
-
-  // Fit map to the bounds of the plaques
-  if (geojson.features.length) {
-    var lngs = geojson.features.map(function(f) { return f.geometry.coordinates[0]; });
-    var lats = geojson.features.map(function(f) { return f.geometry.coordinates[1]; });
-    var bounds = [
-      [Math.min.apply(null, lngs), Math.min.apply(null, lats)],  // sw
-      [Math.max.apply(null, lngs), Math.max.apply(null, lats)]   // ne
-    ];
-    homeMap.fitBounds(bounds, { padding: 40, maxZoom: 14, duration: 0 });
-  }
-
-
-  // Density glow
-  homeMap.addLayer({
-    id: 'home-glow', type: 'circle', source: 'home-plaques',
-    paint: { 'circle-radius': 10, 'circle-color': '#d9534f',
-             'circle-opacity': 0.15, 'circle-blur': 0.5 }
-  });
-
-  // Solid dot
-  homeMap.addLayer({
-    id: 'home-dot', type: 'circle', source: 'home-plaques',
-    paint: { 'circle-radius': 5, 'circle-color': '#d9534f',
-             'circle-opacity': 0.85,
-             'circle-stroke-width': 1, 'circle-stroke-color': '#ffffff' }
-  });
-
-  var popup = new maplibregl.Popup({ closeButton: false, maxWidth: '220px' });
-
-  homeMap.on('click', 'home-dot', function(e) {
-    var p = e.features[0].properties;
-    popup.setLngLat(e.features[0].geometry.coordinates.slice())
-      .setHTML(
-        '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">"' +
-          '<div class="hp-popup">' +
-            '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
-            '<div class="hp-popup-body">' +
-              '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
-            '</div>' +
-          '</div>' +
-        '</a>'
-      ).addTo(homeMap);
-  });
-  homeMap.on('mouseenter', 'home-dot', function() { homeMap.getCanvas().style.cursor = 'pointer'; });
-  homeMap.on('mouseleave', 'home-dot', function() { homeMap.getCanvas().style.cursor = ''; });
-});
-</script>
 {% endblock %}

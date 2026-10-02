@@ -93,6 +93,82 @@ function makeMap(container, opts) {
   });
 }
 </script>
+<script>
+// Initialise all plaque-map-widget divs after makeMap is defined
+document.addEventListener("DOMContentLoaded", function() {
+  document.querySelectorAll(".plaque-map-widget").forEach(function(el) {
+    var mapId   = el.id;
+    var plaques = (window.__plaqueMaps || {})[el.id] || [];
+
+    var m = makeMap(mapId, { center: [10, 20], zoom: 2 });
+    m.addControl(new maplibregl.NavigationControl(), "top-right");
+
+    new IntersectionObserver(function(entries) {
+      var ctrl = el.querySelector(".maplibregl-ctrl-attrib");
+      if (ctrl) ctrl.style.visibility = entries[0].isIntersecting ? "visible" : "hidden";
+    }, { threshold: 0 }).observe(el);
+
+    m.on("load", function() {
+      var features = plaques
+        .filter(function(p) { return p && p.latitude != null && p.longitude != null; })
+        .map(function(p) {
+          return {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+            properties: { title: p.title, slug: p.slug,
+                          thumb_url: p.thumb_url, image_url: p.image_url }
+          };
+        });
+      var geojson = { type: "FeatureCollection", features: features };
+
+      var srcId = mapId + "-src";
+      m.addSource(srcId, { type: "geojson", data: geojson, generateId: true });
+
+      if (features.length) {
+        var lngs = features.map(function(f) { return f.geometry.coordinates[0]; });
+        var lats = features.map(function(f) { return f.geometry.coordinates[1]; });
+        m.fitBounds(
+          [[Math.min.apply(null,lngs), Math.min.apply(null,lats)],
+           [Math.max.apply(null,lngs), Math.max.apply(null,lats)]],
+          { padding: 40, maxZoom: 14, duration: 0 }
+        );
+      }
+
+      m.addLayer({ id: mapId+"-glow", type: "circle", source: srcId,
+        paint: { "circle-radius": 10, "circle-color": "#d9534f",
+                 "circle-opacity": 0.15, "circle-blur": 0.5 } });
+
+      m.addLayer({ id: mapId+"-dot", type: "circle", source: srcId,
+        paint: { "circle-radius": 5, "circle-color": "#d9534f",
+                 "circle-opacity": 0.85,
+                 "circle-stroke-width": 1, "circle-stroke-color": "#ffffff" } });
+
+      var popup = new maplibregl.Popup({ closeButton: false, maxWidth: "220px" });
+
+      function esc(s) {
+        return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;")
+                            .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      }
+
+      m.on("click", mapId+"-dot", function(e) {
+        var p = e.features[0].properties;
+        popup.setLngLat(e.features[0].geometry.coordinates.slice())
+          .setHTML(
+            '<a class="hp-popup-link" href="/plaque/' + esc(p.slug) + '">' +
+            '<div class="hp-popup">' +
+            '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy">' +
+            '<div class="hp-popup-body">' +
+            '<p class="hp-popup-title">' + esc(p.title) + '</p>' +
+            '</div></div></a>'
+          ).addTo(m);
+      });
+      m.on("mouseenter", mapId+"-dot", function() { m.getCanvas().style.cursor = "pointer"; });
+      m.on("mouseleave", mapId+"-dot", function() { m.getCanvas().style.cursor = ""; });
+    });
+  });
+});
+</script>
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

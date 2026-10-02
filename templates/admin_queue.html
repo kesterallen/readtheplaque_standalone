@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros/paginator.html" import paginator %}
+{% from "macros/plaque_map.html" import plaque_map %}
 {% block title %}Approval Queue — Read The Plaque Admin{% endblock %}
 
 {% block extra_head %}
@@ -54,6 +55,15 @@
       </div>
     </div>
     {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if pending %}
+  <div class="map-section" style="margin-top:24px">
+    <div class="map-section-header">
+      <h2>Locations of plaques in queue</h2>
+    </div>
+    {{ plaque_map("queue-map", pending, height="280px") }}
   </div>
   {% endif %}
 
