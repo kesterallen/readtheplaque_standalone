@@ -58,7 +58,7 @@
       by <a href="https://github.com/kesterallen">Kester Allen</a>.
       Contact us by <a href="https://facebook.com/readtheplaque">Facebook</a> or
       <a href="mailto:info@readtheplaque.com">info@readtheplaque.com</a>.
-      Thanks to <a href="https://github.com/Leaflet">Leaflet</a> and
+      Thanks to <a href="https://maplibre.org">MapLibre</a> and
       <a href="https://osmfoundation.org/wiki/Terms_of_Use">OpenStreetMap</a>
       for great mapping tools.
     </p>
@@ -78,7 +78,9 @@ var _cartoKey = {{ (carto_api_key | default("")) | tojson }};
 
 function mapStyle() {
   if (_cartoKey) {
-    return "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+    //return "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
+    //return "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    return "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
   }
   return "https://demotiles.maplibre.org/style.json";
 }
@@ -88,7 +90,8 @@ function makeMap(container, opts) {
   return new maplibregl.Map({
     container: container,
     style: mapStyle(),
-    center: o.center || [0, 20],
+    center: o.center || [0, 0],
+    bearing: -180,
     zoom: o.zoom !== undefined ? o.zoom : 2,
   });
 }
@@ -100,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function() {
     var mapId   = el.id;
     var plaques = (window.__plaqueMaps || {})[el.id] || [];
 
-    var m = makeMap(mapId, { center: [10, 20], zoom: 2 });
+    var m = makeMap(mapId, { center: [-10, 20], zoom: 2 });
     m.addControl(new maplibregl.NavigationControl(), "top-right");
 
     new IntersectionObserver(function(entries) {
