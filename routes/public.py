@@ -105,7 +105,7 @@ def feed():
 @public_bp.route("/map")
 @public_bp.route("/map/<path:coords>")
 def map_view(coords=None):
-    lat, lng, zoom = 20.0, 10.0, 2
+    lat, lng, zoom = 30.0, -160.0, 3
     if coords:
         parts = coords.split("/")
         if len(parts) == 3:
@@ -417,7 +417,7 @@ def submitter_page(submitter_name):
     )
 
 
-# ── Random & About ────────────────────────────────────────────────────────────
+# ── Random, About, Counts ────────────────────────────────────────────────────────────
 @public_bp.route("/random")
 def random_plaque():
     with get_db() as db:
@@ -431,6 +431,14 @@ def random_plaque():
 @public_bp.route("/about")
 def about():
     return render_template("about.html")
+
+
+@public_bp.route("/counts")
+def counts():
+    with get_db() as db:
+        pending = db.execute("SELECT count(*) FROM plaques WHERE approved = 0").fetchone()[0]
+        approved = db.execute("SELECT count(*) FROM plaques WHERE approved != 0").fetchone()[0]
+    return f"Pending: {pending}; Approved: {approved}; Total {pending + approved}"
 
 
 # ── File serving ──────────────────────────────────────────────────────────────
