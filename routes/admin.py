@@ -320,23 +320,34 @@ def rotate(plaque_id):
 
 
 # ── Feature ────────────────────────────────────────────────────────────────────
-@admin_bp.route("/feature/<int:plaque_id>", methods=["POST"])
+def _feature(plaque_id: int):
+    with get_db() as db:
+        db.execute("UPDATE plaques SET is_featured=0")
+        db.execute("UPDATE plaques SET is_featured=1 WHERE id=?", (plaque_id,))
+    return jsonify({"ok": True, "featured_id": plaque_id})
+
+@admin_bp.route("/feature/<int:plaque_id>", methods=["POST", "GET"])
 def feature(plaque_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
-        row = db.execute(
-            "SELECT id FROM plaques WHERE id=? AND approved=1", (plaque_id,)
-        ).fetchone()
+        row = db.execute("SELECT id FROM plaques WHERE id=? AND approved=1", (plaque_id,)).fetchone()
         if not row:
-            return (
-                jsonify({"ok": False, "error": "Plaque not found or not approved"}),
-                404,
-            )
-        with db:
-            db.execute("UPDATE plaques SET is_featured=0")
-            db.execute("UPDATE plaques SET is_featured=1 WHERE id=?", (plaque_id,))
-    return jsonify({"ok": True, "featured_id": plaque_id})
+            return (jsonify({"ok": False, "error": "Plaque not found or not approved"}), 404,)
+        id = row["id"]
+        return _feature(id)
+
+@admin_bp.route("/feature_random", methods=["GET"])
+def feature_random():
+    if not is_admin():
+        return redirect(url_for("admin.login"))
+
+    with get_db() as db:
+        rows = db.execute("SELECT id FROM plaques WHERE approved=1").fetchall()
+        if not rows:
+            abort(404)
+        id = random.choice(rows)["id"]
+        return _feature(id)
 
 
 # ── Image management ───────────────────────────────────────────────────────────

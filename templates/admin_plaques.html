@@ -59,6 +59,7 @@
         <th><a class="ap-sort-link" href="{{ sort_url('updated_at') }}">Updated {{ sort_icon('updated_at') }}</a></th>
         <th></th>
         <th></th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -88,6 +89,11 @@
         <td>
           {% if not p.approved %}
           <button class="btn-reject" data-id="{{ p.id }}" data-title="{{ p.title | e }}">🗑 Reject</button>
+          {% endif %}
+        </td>
+        <td>
+          {% if p.approved %}
+          <a class="btn-edit" href="/admin/feature/{{ p.id }}">👍Feature</a>
           {% endif %}
         </td>
       </tr>
