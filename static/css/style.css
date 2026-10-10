@@ -985,3 +985,13 @@ textarea { resize: vertical; min-height: 90px; }
     transform: rotate(360deg);
   }
 }
+
+/* ── Feature button (admin plaques table) ────────────────────────────────────── */
+.btn-feature {
+  padding: 4px 10px; font-size: 12px; font-family: inherit; cursor: pointer;
+  background: #fffbf0; color: #b07d00; border: 1px solid #b07d00;
+  transition: background .12s, color .12s; white-space: nowrap;
+}
+.btn-feature:hover { background: #b07d00; color: #fff; }
+.btn-feature--active { background: #b07d00; color: #fff; }
+.btn-feature:disabled { opacity: .5; cursor: not-allowed; }

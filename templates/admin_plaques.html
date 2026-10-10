@@ -93,7 +93,10 @@
         </td>
         <td>
           {% if p.approved %}
-          <a class="btn-edit" href="/admin/feature/{{ p.id }}">👍Feature</a>
+          <button class="btn-feature {% if p.is_featured %}btn-feature--active{% endif %}"
+                  data-id="{{ p.id }}">
+            {{ "★" if p.is_featured else "☆" }} Feature
+          </button>
           {% endif %}
         </td>
       </tr>
@@ -124,6 +127,30 @@ document.querySelectorAll('.btn-reject').forEach(function(btn) {
           btn.closest('tr').remove();
         } else {
           alert('Reject failed: ' + (data.error || 'unknown error'));
+          btn.disabled = false;
+        }
+      })
+      .catch(function() { alert('Network error'); btn.disabled = false; });
+  });
+});
+
+document.querySelectorAll('.btn-feature').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var id = btn.dataset.id;
+    btn.disabled = true;
+    fetch('/admin/feature/' + id, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          document.querySelectorAll('.btn-feature').forEach(function(b) {
+            b.textContent = '☆ Feature';
+            b.classList.remove('btn-feature--active');
+            b.disabled = false;
+          });
+          btn.textContent = '★ Feature';
+          btn.classList.add('btn-feature--active');
+        } else {
+          alert('Feature failed: ' + (data.error || 'unknown error'));
           btn.disabled = false;
         }
       })
