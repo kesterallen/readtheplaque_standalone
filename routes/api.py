@@ -111,10 +111,9 @@ def nearby(plaque_id):
 
     # TODO: start with a smaller NEARBY_LIMIT, and expand if there aren't enough plaques?
     # ?
-    # dlat = .018 -> 0.018 degrees of latitude ~ 2 km
+    # dlat = 0.018 -> 0.018 degrees of latitude ~ 2 km
     # dlat = 1.8 -> 1.8 degrees of latitude ~ 200 km
-
-    dlats = [0.18, 1.8]
+    dlats = [0.018, 1.8]
     for dlat in dlats:
         with get_db() as db:
             origin = db.execute(
@@ -134,7 +133,7 @@ def nearby(plaque_id):
                 f" LIMIT {NEARBY_LIMIT}",
                 (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
             ).fetchall()
-        if candidates == NEARBY_LIMIT:
+        if len(candidates) >= NEARBY_LIMIT:
             break
 
     ranked = sorted(
@@ -150,8 +149,7 @@ def nearby(plaque_id):
         d["distance_km"] = round(_haversine(lat, lng, r["latitude"], r["longitude"]), 2)
         results.append(d)
 
-    # TODO: trim the results list if the limits have been expanded above?  return jsonify(results[:NEARBY_LIMIT])
-    return jsonify(results)
+    return jsonify(results[:NEARBY_LIMIT])
 
 
 # ── Single plaque ──────────────────────────────────────────────────────────────
