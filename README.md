@@ -7,7 +7,7 @@ A Python 3-tier web application for crowdsourcing historical plaques
 ```
 ┌─────────────────────────────────────┐
 │  Tier 1 — Frontend                  │
-│  HTML/CSS/JS · Leaflet maps         │
+│  HTML/CSS/JS │
 │  Jinja2 templates · Vanilla JS      │
 └──────────────┬──────────────────────┘
                │ HTTP
@@ -26,7 +26,7 @@ A Python 3-tier web application for crowdsourcing historical plaques
 
 ## Features
 
-- 🗺️ **Clustered world map** — Leaflet.js + MarkerCluster, CARTO tile layer
+- 🗺️ **Density overlay world map** — Maplibre, CARTO tile layer
 - 🔍 **Live search** — search by title, location, or plaque text (with debounce)
 - 📤 **Upload form** — drag-and-drop image, click-to-pin map, geolocation
 - 📄 **Detail pages** — full plaque view with mini-map
