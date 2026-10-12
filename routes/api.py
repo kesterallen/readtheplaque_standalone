@@ -83,31 +83,7 @@ def search():
 def nearby(plaque_id):
     """Return the NEARBY_LIMIT nearest approved plaques, sorted by distance."""
 
-    # TODO: start with a smaller NEARBY_LIMIT, and expand if there aren't enough plaques?
-    # ?
-    # dlat = 1.8 -> 1.8 degrees of latitude ~ 200 miles
-
-    with get_db() as db:
-        origin = db.execute(
-            "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
-            (plaque_id,),
-        ).fetchone()
-        if not origin:
-            abort(404)
-
-        lat, lng = origin["latitude"], origin["longitude"]
-        dlat = 1.8
-        dlng = dlat / max(math.cos(math.radians(lat)), 0.01)
-
-        candidates = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND id != ?"
-            " AND latitude  BETWEEN ? AND ?"
-            " AND longitude BETWEEN ? AND ?"
-            f" LIMIT {NEARBY_LIMIT}",
-            (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
-        ).fetchall()
-
-    def equirectangular_distance_proxy(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    def _equirectangular_distance_proxy(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
         """
         Fast version of equirectangular distance for sorting -- ignore
         earth radius and skip the square root for computational spped
@@ -120,7 +96,7 @@ def nearby(plaque_id):
         distance_dividedbyR_squared  = dx**2 + dy**2
         return distance_dividedbyR_squared
 
-    def haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
         """ Distance in km between (lat1, lng1) and (lat2, lng2)"""
         earth_radius_km = 6371
         dlat = math.radians(lat2 - lat1)
@@ -133,17 +109,45 @@ def nearby(plaque_id):
         )
         return earth_radius_km * 2 * math.asin(math.sqrt(a))
 
+    # TODO: start with a smaller NEARBY_LIMIT, and expand if there aren't enough plaques?
+    # ?
+    # dlat = .018 -> 0.018 degrees of latitude ~ 2 km
+    # dlat = 1.8 -> 1.8 degrees of latitude ~ 200 km
+
+    dlats = [0.18, 1.8]
+    for dlat in dlats:
+        with get_db() as db:
+            origin = db.execute(
+                "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
+                (plaque_id,),
+            ).fetchone()
+            if not origin:
+                abort(404)
+
+            lat, lng = origin["latitude"], origin["longitude"]
+            dlng = dlat / max(math.cos(math.radians(lat)), 0.01)
+
+            candidates = db.execute(
+                "SELECT * FROM plaques WHERE approved=1 AND id != ?"
+                " AND latitude  BETWEEN ? AND ?"
+                " AND longitude BETWEEN ? AND ?"
+                f" LIMIT {NEARBY_LIMIT}",
+                (plaque_id, lat - dlat, lat + dlat, lng - dlng, lng + dlng),
+            ).fetchall()
+        if candidates == NEARBY_LIMIT:
+            break
+
     ranked = sorted(
         candidates,
-        key=lambda r: equirectangular_distance_proxy(lat, lng, r["latitude"], r["longitude"]),
-        # TODO: previously used this haversine call, but the equirectangular_distance_proxy is faster:
-        #key=lambda r: haversine(lat, lng, r["latitude"], r["longitude"]),
+        key=lambda r: _equirectangular_distance_proxy(lat, lng, r["latitude"], r["longitude"]),
+        # TODO: previously used this _haversine call, but the _equirectangular_distance_proxy is faster:
+        #key=lambda r: _haversine(lat, lng, r["latitude"], r["longitude"]),
     )
 
     results = []
     for r in ranked:
         d = plaque_to_dict(r)
-        d["distance_km"] = round(haversine(lat, lng, r["latitude"], r["longitude"]), 2)
+        d["distance_km"] = round(_haversine(lat, lng, r["latitude"], r["longitude"]), 2)
         results.append(d)
 
     # TODO: trim the results list if the limits have been expanded above?  return jsonify(results[:NEARBY_LIMIT])
