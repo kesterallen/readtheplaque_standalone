@@ -3,40 +3,49 @@
 {% from "macros/plaque_map.html" import plaque_map %}
 {% block title %}Read The Plaque{% endblock %}
 
-{% block extra_head %}{% endblock %}
-
 {% block content %}
 
-<!-- Featured plaque -->
-{% if featured %}
-<section class="featured">
-  <p class="featured-label">Featured Plaque:</p>
-  <a href="/plaque/{{ featured.slug }}" class="featured-card">
-    <img class="featured-img" src="{{ featured.image_url }}" alt="{{ featured.title }}">
-    <div class="featured-body">
+<!-- Hero: featured plaque + map side by side -->
+<section class="index-hero">
+  {% if featured %}
+  <a href="/plaque/{{ featured.slug }}" class="index-featured">
+    <div class="index-featured-body">
+      <p class="featured-label">Featured Plaque</p>
       <h2>{{ featured.title }}</h2>
       {% if featured.description %}
       <p class="featured-desc">{{ featured.description | striptags }}</p>
       {% endif %}
     </div>
+    <img class="index-featured-img" src="{{ featured.image_url }}" alt="{{ featured.title }}">
   </a>
+  {% else %}
+  <div class="index-featured index-featured--empty">
+    <p>No featured plaque yet.</p>
+  </div>
+  {% endif %}
+
+  <div class="index-map-panel">
+    <div class="index-map-header">
+      The page's plaques (<a href="/map">explore the entire big map</a>):
+    </div>
+    {{ plaque_map("home-map", ([featured] if featured else []) + recent, height="100%") }}
+  </div>
 </section>
-{% endif %}
 
 <!-- Search -->
 <section class="search-section">
   <div class="search-box">
     <span class="search-icon">🔍</span>
-    <input type="text" id="searchInput" placeholder="Search {{ total }} plaques…" autocomplete="off">
+    <input type="text" id="searchInput" placeholder="Search all {{ total }} plaques" autocomplete="off">
     <button id="searchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
   </div>
   <div id="searchResults" class="search-results-overlay is-hidden"></div>
 </section>
 
-<!-- Recent plaques -->
+<!-- Recent plaques grid -->
 <section class="recent-section">
   <div class="recent-header">
-    <h2>The most recent plaques:</h2>
+    <h2>Most recent plaques</h2>
   </div>
   <div class="plaque-grid">
     {% for p in recent %}
@@ -50,15 +59,6 @@
   </div>
 </section>
 
-<!-- Mini map -->
-<section class="map-section">
-  <div class="map-section-header">
-    <h2>Map of this page's plauqes (Explore all {{ total }} plaques on <a href="/map"> the big map</a>):</h2>
-  </div>
-  {{ plaque_map("home-map", ([featured] if featured else []) + recent) }}
-</section>
-
-<!-- Paginator -->
 {{ paginator(page, total_pages, "/?") }}
 
 {% endblock %}
@@ -69,6 +69,12 @@ const input  = document.getElementById('searchInput');
 const clear  = document.getElementById('searchClear');
 const overlay= document.getElementById('searchResults');
 let timer;
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && input.value.trim()) {
+    window.location.href = '/search?q=' + encodeURIComponent(input.value.trim());
+  }
+});
 
 input.addEventListener('input', () => {
   const q = input.value.trim();
@@ -119,5 +125,4 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.search-section')) overlay.classList.add('is-hidden');
 });
 </script>
-
 {% endblock %}

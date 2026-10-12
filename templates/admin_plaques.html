@@ -89,6 +89,8 @@
         <td>
           {% if not p.approved %}
           <button class="btn-reject" data-id="{{ p.id }}" data-title="{{ p.title | e }}">🗑 Reject</button>
+          {% else %}
+          <button class="btn-unapprove" data-id="{{ p.id }}">↩ Un-approve</button>
           {% endif %}
         </td>
         <td>
@@ -114,9 +116,34 @@
 </div>
 {% block scripts %}
 <script>
+document.querySelectorAll('.btn-unapprove').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    if (!confirm('Move this plaque back to the approval queue?')) return;
+    btn.disabled = true;
+    fetch('/admin/unapprove/' + btn.dataset.id, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          var badge = btn.closest('tr').querySelector('.badge');
+          badge.className = 'badge badge-pending';
+          badge.textContent = 'Pending';
+          var newBtn = document.createElement('button');
+          newBtn.className = 'btn-reject';
+          newBtn.textContent = '🗑 Reject';
+          newBtn.dataset.id = btn.dataset.id;
+          btn.replaceWith(newBtn);
+        } else {
+          alert('Failed: ' + (data.error || 'unknown'));
+          btn.disabled = false;
+        }
+      })
+      .catch(function() { alert('Network error'); btn.disabled = false; });
+  });
+});
+
 document.querySelectorAll('.btn-reject').forEach(function(btn) {
   btn.addEventListener('click', function() {
-    var id    = btn.dataset.id;
+    var id = btn.dataset.id;
     var title = btn.dataset.title;
     if (!confirm('Reject and delete "' + title + '"? This cannot be undone.')) return;
     btn.disabled = true;
@@ -127,30 +154,6 @@ document.querySelectorAll('.btn-reject').forEach(function(btn) {
           btn.closest('tr').remove();
         } else {
           alert('Reject failed: ' + (data.error || 'unknown error'));
-          btn.disabled = false;
-        }
-      })
-      .catch(function() { alert('Network error'); btn.disabled = false; });
-  });
-});
-
-document.querySelectorAll('.btn-feature').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    var id = btn.dataset.id;
-    btn.disabled = true;
-    fetch('/admin/feature/' + id, { method: 'POST' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data.ok) {
-          document.querySelectorAll('.btn-feature').forEach(function(b) {
-            b.textContent = '☆ Feature';
-            b.classList.remove('btn-feature--active');
-            b.disabled = false;
-          });
-          btn.textContent = '★ Feature';
-          btn.classList.add('btn-feature--active');
-        } else {
-          alert('Feature failed: ' + (data.error || 'unknown error'));
           btn.disabled = false;
         }
       })
