@@ -424,7 +424,7 @@ body.page-map .site-banner { display: none; }
 
 
 /* ── detail.html ─────────────────────────────────────────── */
-.detail-page { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+.detail-page { max-width: 100%; padding: 32px 24px 60px; }
 .breadcrumb { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
 .breadcrumb a { color: var(--accent); text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; }
@@ -986,12 +986,145 @@ textarea { resize: vertical; min-height: 90px; }
   }
 }
 
-/* ── Feature button (admin plaques table) ────────────────────────────────────── */
-.btn-feature {
-  padding: 4px 10px; font-size: 12px; font-family: inherit; cursor: pointer;
-  background: #fffbf0; color: #b07d00; border: 1px solid #b07d00;
-  transition: background .12s, color .12s; white-space: nowrap;
+/* ── Index hero: featured + map side by side ─────────────────────────────────── */
+.index-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  height: calc(100vh - var(--header-h) - var(--banner-h, 0px));
+  min-height: 360px;
+  max-height: 600px;
+  max-width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
 }
-.btn-feature:hover { background: #b07d00; color: #fff; }
-.btn-feature--active { background: #b07d00; color: #fff; }
-.btn-feature:disabled { opacity: .5; cursor: not-allowed; }
+
+.index-featured {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+  color: var(--text);
+  overflow: hidden;
+  position: relative;
+}
+.index-featured--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.index-featured-img {
+  width: 100%;
+  flex: 1;
+  object-fit: cover;
+  display: block;
+  min-height: 0;
+  transition: filter .2s;
+}
+.index-featured:hover .index-featured-img { filter: brightness(.9); }
+.index-featured-body {
+  padding: 16px 20px;
+  background: var(--surface);
+  border-top: 2px solid var(--accent);
+  flex-shrink: 0;
+}
+.index-featured-body h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(15px, 1.8vw, 22px);
+  margin: 4px 0 6px;
+  line-height: 1.25;
+}
+.index-featured-body .featured-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.index-map-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.index-map-header {
+  padding: 8px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.index-map-header a { color: var(--accent); text-decoration: none; }
+.index-map-header a:hover { text-decoration: underline; }
+.index-map-panel .plaque-map-widget {
+  flex: 1;
+  min-height: 0;
+  height: auto !important; /* override inline height — flex handles it */
+}
+
+/* Full-width sections below hero */
+.search-section,
+.recent-section {
+  max-width: 100%;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+@media (max-width: 640px) {
+  .index-hero {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+  }
+  .index-featured-img { max-height: 260px; }
+  .index-map-panel { height: 260px; border-left: none; border-top: 1px solid var(--border); }
+  .index-map-panel .plaque-map-widget { height: 100% !important; }
+}
+
+/* ── Un-approve button (admin plaques table) ─────────────────────────────────── */
+.btn-unapprove {
+  padding: 4px 10px; font-size: 12px; font-family: inherit; cursor: pointer;
+  background: #f5f5f5; color: #555; border: 1px solid #aaa;
+  transition: background .12s; white-space: nowrap;
+}
+.btn-unapprove:hover { background: #555; color: #fff; border-color: #555; }
+.btn-unapprove:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Search results page ──────────────────────────────────────────────────────── */
+.search-results-hero-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 32px 28px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.search-results-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(18px, 2.5vw, 32px);
+  margin: 0 0 12px;
+  line-height: 1.25;
+}
+.search-results-title em { color: var(--accent); font-style: normal; }
+.search-results-sub { font-size: 13px; color: var(--text-muted); margin: 0 0 24px; }
+.search-results-sub a { color: var(--accent); text-decoration: none; }
+.search-results-sub a:hover { text-decoration: underline; }
+.search-results-form .search-box { margin-top: 8px; }
+.search-submit-btn {
+  padding: 0 16px; background: var(--accent); color: #fff; border: none;
+  font-size: 14px; font-family: inherit; cursor: pointer; transition: background .15s;
+}
+.search-submit-btn:hover { background: var(--accent-dark); }
+.search-no-results {
+  display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
+  padding: 32px 28px; gap: 16px;
+  color: var(--text-muted); font-size: 14px;
+}
+.search-no-results a { color: var(--accent); text-decoration: none; }
+.search-no-results a:hover { text-decoration: underline; }
