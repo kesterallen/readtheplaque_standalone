@@ -71,7 +71,7 @@ def index(page=1):
             (featured_id or -1, PER_PAGE, offset),
         ).fetchall()
 
-    featured = plaque_to_dict(featured_row) if (page == 1 and featured_row) else None
+    featured = plaque_to_dict(featured_row) if featured_row else None
     recent = [plaque_to_dict(r) for r in rows]
     total_pages = max(1, -(-total // PER_PAGE))
 
@@ -346,6 +346,24 @@ def plaque_detail(slug):
         sanitise_description(plaque["description"]) if plaque.get("description") else ""
     )
     return render_template("detail.html", plaque=plaque)
+
+
+# ── Search results page ───────────────────────────────────────────────────────
+@public_bp.route("/search")
+def search_page():
+    q = request.args.get("q", "").strip()
+    if not q:
+        return redirect(url_for("public.index"))
+    like = f"%{q}%"
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM plaques WHERE approved=1"
+            " AND (title LIKE ? OR description LIKE ?)"
+            " ORDER BY created_at DESC",
+            (like, like),
+        ).fetchall()
+    plaques = [plaque_to_dict(r) for r in rows]
+    return render_template("search_results.html", q=q, plaques=plaques, total=len(plaques))
 
 
 # ── Tag page ──────────────────────────────────────────────────────────────────

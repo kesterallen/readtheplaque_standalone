@@ -155,6 +155,15 @@ def approve(plaque_id):
     return jsonify({"ok": True})
 
 
+@admin_bp.route("/unapprove/<int:plaque_id>", methods=["POST"])
+def unapprove(plaque_id):
+    if not is_admin():
+        return jsonify({"ok": False, "error": "Not authenticated"}), 403
+    with get_db() as db:
+        db.execute("UPDATE plaques SET approved=0 WHERE id=?", (plaque_id,))
+    return jsonify({"ok": True})
+
+
 @admin_bp.route("/reject/<int:plaque_id>", methods=["POST"])
 def reject(plaque_id):
     if not is_admin():
@@ -326,7 +335,7 @@ def _feature(plaque_id: int):
         db.execute("UPDATE plaques SET is_featured=1 WHERE id=?", (plaque_id,))
     return jsonify({"ok": True, "featured_id": plaque_id})
 
-@admin_bp.route("/feature/<int:plaque_id>", methods=["POST", "GET"])
+@admin_bp.route("/feature/<int:plaque_id>", methods=["POST"])
 def feature(plaque_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
@@ -337,7 +346,7 @@ def feature(plaque_id):
         id = row["id"]
         return _feature(id)
 
-@admin_bp.route("/feature_random", methods=["GET"])
+@admin_bp.route("/feature_random", methods=["POST"])
 def feature_random():
     if not is_admin():
         return redirect(url_for("admin.login"))
