@@ -28,6 +28,7 @@ from models import (
     get_images_for_plaque,
     get_tags_for_plaque,
     image_url,
+    make_or_update_slug,
     make_thumbnail,
     new_image_filename,
     new_thumb_filename,
@@ -201,20 +202,6 @@ def submit():
     return jsonify(resp)
 
 
-def _make_slug(title: str, slug_from_form: str = None) -> str:
-    base_slug = request.form.get("slug", slug_from_form)
-    if base_slug is None:
-        base_slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
-    slug = base_slug
-    suffix = 1
-    same_slug_sql = "SELECT COUNT(*) FROM plaques WHERE slug=?"
-    with get_db() as db:
-        while (count := db.execute(same_slug_sql, (slug,)).fetchone()[0]) != 0:
-            suffix += 1
-            slug = f"{base_slug}{suffix}"
-    return slug
-
-
 def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
     saved_images: list[dict] = []
     errors: list[str] = []
@@ -257,7 +244,7 @@ def _insert_plaque_rows(
 ) -> tuple[int, str, list[str]]:
     with get_db() as db:
         primary = saved_images[0]
-        slug = _make_slug(title, request.form.get("slug"))
+        slug = make_or_update_slug(db, title)
 
         # Build column list and values dynamically for optional fields
         cols = [

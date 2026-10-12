@@ -8,6 +8,7 @@ No Flask dependency — importable and testable without an app context.
 import hashlib
 import io
 import os
+import re
 import sqlite3
 import uuid
 from typing import Optional
@@ -199,6 +200,24 @@ def sync_primary_image(db: sqlite3.Connection, plaque_id: int) -> None:
             "UPDATE plaques SET image_file=?, thumb_file=? WHERE id=?",
             (primary["image_file"], primary["thumb_file"], plaque_id),
         )
+
+
+# ── Slug helpers ──────────────────────────────────────────────────────────────
+def make_or_update_slug(db: sqlite3.Connection, title: str, exclude_id: Optional[int] = -1) -> str:
+    """
+    Generate a unique slug from title, excluding the given plaque id from
+    uniqueness checks (so updating a plaque's title makes a new slug without
+    conflicting with itself).
+    Make a new slug by leaving off the final arg.
+    """
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "plaque"
+    slug = base
+    suffix = 1
+    sql = "SELECT COUNT(*) FROM plaques WHERE slug=? AND id != ?"
+    while db.execute(sql, (slug, exclude_id or -1)).fetchone()[0]:
+        suffix += 1
+        slug = f"{base}-{suffix}"
+    return slug
 
 
 # ── Tag helpers ────────────────────────────────────────────────────────────────

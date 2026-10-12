@@ -25,6 +25,7 @@ from models import (
     get_tags_for_plaque,
     image_url,
     make_thumbnail,
+    make_or_update_slug,
     new_image_filename,
     new_thumb_filename,
     parse_tags,
@@ -270,11 +271,16 @@ def edit(plaque_id):
         set_tags_for_plaque(db, plaque_id, tag_names)
         if set_featured:
             db.execute("UPDATE plaques SET is_featured=0")
+        # Regenerate slug if title changed
+        new_slug = row["slug"]
+        if title != row["title"]:
+            new_slug = make_or_update_slug(db, title, exclude_id=plaque_id)
         db.execute(
-            "UPDATE plaques SET title=?, description=?, latitude=?, longitude=?,"
+            "UPDATE plaques SET slug=?, title=?, description=?, latitude=?, longitude=?,"
             " submitted_by=?, approved=?, is_featured=?, image_file=?, thumb_file=?,"
             " updated_at=? WHERE id=?",
             (
+                new_slug,
                 title,
                 description,
                 lat,
