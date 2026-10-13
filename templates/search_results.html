@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros/paginator.html" import paginator %}
 {% from "macros/plaque_map.html" import plaque_map %}
 {% block title %}Search: {{ q }} — Read The Plaque{% endblock %}
 
@@ -66,5 +67,7 @@
   </div>
 </section>
 {% endif %}
+
+{{ paginator(page, total_pages, "/search?q=" + q) }}
 
 {% endblock %}

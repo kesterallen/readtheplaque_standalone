@@ -48,9 +48,9 @@ public_bp = Blueprint("public", __name__)
 
 # ── Homepage ───────────────────────────────────────────────────────────────────
 @public_bp.route("/")
-@public_bp.route("/page/<int:page>")
+@public_bp.route("/page/<int:page>") # TODO: make this route work
 def index(page=1):
-    page = max(1, request.args.get("page", page, type=int))
+    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work, this'll need to get skipped if page is specified in the route
     offset = (page - 1) * PER_PAGE
 
     with get_db() as db:
@@ -68,7 +68,8 @@ def index(page=1):
 
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1 AND id != ?"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            " ORDER BY created_at DESC"
+            " LIMIT ? OFFSET ?",
             (featured_id or -1, PER_PAGE, offset),
         ).fetchall()
 
@@ -337,20 +338,40 @@ def plaque_detail(slug):
 
 # ── Search results page ───────────────────────────────────────────────────────
 @public_bp.route("/search")
-def search_page():
+@public_bp.route("/search/<int:page>") # TODO: make this route work
+def search_page(page=1):
+    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work this'll need to get skipped if page is specified in the route
+    offset = (page - 1) * PER_PAGE
+
     q = request.args.get("q", "").strip()
     if not q:
         return redirect(url_for("public.index"))
     like = f"%{q}%"
     with get_db() as db:
+        total = db.execute(
+            "SELECT COUNT(*) FROM plaques WHERE approved=1"
+            " AND (title LIKE ? OR description LIKE ?)",
+            (like, like),
+        ).fetchone()[0]
+
+        # TODO: note this is title and description search, might want to be able to limit to title-only
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1"
             " AND (title LIKE ? OR description LIKE ?)"
-            " ORDER BY created_at DESC",
-            (like, like),
+            " ORDER BY created_at DESC"
+            " LIMIT ? OFFSET ?",
+            (like, like, PER_PAGE, offset),
         ).fetchall()
     plaques = [plaque_to_dict(r) for r in rows]
-    return render_template("search_results.html", q=q, plaques=plaques, total=len(plaques))
+    total_pages = max(1, -(-total // PER_PAGE))
+    return render_template(
+        "search_results.html",
+        q=q,
+        plaques=plaques,
+        total=total,
+        page=page,
+        total_pages=total_pages,
+    )
 
 
 # ── Tag page ──────────────────────────────────────────────────────────────────
