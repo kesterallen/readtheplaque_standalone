@@ -9,14 +9,11 @@
   <div class="search-results-hero-info">
     <h1 class="search-results-title">
       {% if total %}
-        {{ total }} result{{ 's' if total != 1 }} for <em>{{ q }}</em>
+        {{ total }} result{{ 's' if total != 1 }} for <em>{{ q }}</em>. Showing page {{ page }} of {{ total_pages }}
       {% else %}
         No results for <em>{{ q }}</em>
       {% endif %}
     </h1>
-    <p class="search-results-sub">
-      <a href="/">← Back to home</a>
-    </p>
     {% if total %}
     <form class="search-results-form" action="/search" method="GET">
       <div class="search-box">

@@ -145,7 +145,7 @@ function handleFiles(files) {
 function handleFile(file) { handleFiles([file]); }
 
 // ── Picker map ────────────────────────────────────────────────────────────────
-const pickerMap = makeMap('locationPicker', { center: [0, 20], zoom: 1 });
+const pickerMap = makeMap('locationPicker', { center: [0, 20], zoom: 0 });
 
 let pickerMarker = null;
 
@@ -327,7 +327,7 @@ function clearForm() {
 
   // Map marker and coords
   if (pickerMarker) { pickerMarker.remove(); pickerMarker = null; }
-  pickerMap.flyTo({ center: [0, 20], zoom: 1 });
+  pickerMap.flyTo({ center: [0, 20], zoom: 0 });
 
   // Address search results
   const addrResults = document.getElementById('addressResults');

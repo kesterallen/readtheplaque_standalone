@@ -49,13 +49,11 @@
   <div id="miniMap" class="mini-map"></div>
 
   <section class="nearby-section">
-    <h2 class="nearby-title">Nearby Plaques</h2>
+    <h2 class="nearby-title"><a href="/map/{{ plaque.latitude }}/{{ plaque.longitude }}/12">Nearby Plaques<a/></h2>
     <div class="nearby-grid" id="nearbyGrid">
       <div class="nearby-loading">Loading…</div>
     </div>
   </section>
-
-  <a href="/map" class="back-link">← View all plaques on map</a>
 </div>
 <!-- Lightbox — must be outside any overflow:hidden parent -->
 <div id="lightbox" onclick="closeLightbox()">

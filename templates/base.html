@@ -91,8 +91,8 @@ function makeMap(container, opts) {
     container: container,
     style: mapStyle(),
     center: o.center || [0, 0],
-    bearing: -180,
-    zoom: o.zoom !== undefined ? o.zoom : 2,
+    bearing: 0,
+    zoom: o.zoom !== undefined ? o.zoom : 0,
   });
 }
 </script>
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function() {
     var mapId   = el.id;
     var plaques = (window.__plaqueMaps || {})[el.id] || [];
 
-    var m = makeMap(mapId, { center: [-10, 20], zoom: 2 });
+    var m = makeMap(mapId, { center: [-10, 20], zoom: 0 });
     m.addControl(new maplibregl.NavigationControl(), "top-right");
 
     new IntersectionObserver(function(entries) {
