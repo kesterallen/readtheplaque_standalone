@@ -88,6 +88,7 @@
         <td><a class="btn-edit" href="/admin/edit/{{ p.id }}">✏️ Edit</a></td>
         <td>
           {% if not p.approved %}
+          <button class="btn-approve" data-id="{{ p.id }}">✓ Approve</button>
           <button class="btn-reject" data-id="{{ p.id }}" data-title="{{ p.title | e }}">🗑 Reject</button>
           {% else %}
           <button class="btn-unapprove" data-id="{{ p.id }}">↩ Un-approve</button>
@@ -116,7 +117,36 @@
 </div>
 {% block scripts %}
 <script>
-document.querySelectorAll('.btn-unapprove').forEach(function(btn) {
+// ── Helper: attach approve handler ───────────────────────────────────────────
+function attachApprove(btn) {
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    fetch('/admin/approve/' + btn.dataset.id, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          var row = btn.closest('tr');
+          row.querySelector('.badge').className = 'badge badge-approved';
+          row.querySelector('.badge').textContent = 'Approved';
+          var cell = btn.closest('td');
+          var ub = document.createElement('button');
+          ub.className = 'btn-unapprove';
+          ub.textContent = '↩ Un-approve';
+          ub.dataset.id = btn.dataset.id;
+          cell.innerHTML = '';
+          cell.appendChild(ub);
+          attachUnapprove(ub);
+        } else {
+          alert('Approve failed: ' + (data.error || 'unknown'));
+          btn.disabled = false;
+        }
+      })
+      .catch(function() { alert('Network error'); btn.disabled = false; });
+  });
+}
+
+// ── Helper: attach unapprove handler ─────────────────────────────────────────
+function attachUnapprove(btn) {
   btn.addEventListener('click', function() {
     if (!confirm('Move this plaque back to the approval queue?')) return;
     btn.disabled = true;
@@ -124,14 +154,24 @@ document.querySelectorAll('.btn-unapprove').forEach(function(btn) {
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.ok) {
-          var badge = btn.closest('tr').querySelector('.badge');
-          badge.className = 'badge badge-pending';
-          badge.textContent = 'Pending';
-          var newBtn = document.createElement('button');
-          newBtn.className = 'btn-reject';
-          newBtn.textContent = '🗑 Reject';
-          newBtn.dataset.id = btn.dataset.id;
-          btn.replaceWith(newBtn);
+          var row = btn.closest('tr');
+          row.querySelector('.badge').className = 'badge badge-pending';
+          row.querySelector('.badge').textContent = 'Pending';
+          var cell = btn.closest('td');
+          var ab = document.createElement('button');
+          ab.className = 'btn-approve';
+          ab.textContent = '✓ Approve';
+          ab.dataset.id = btn.dataset.id;
+          var rb = document.createElement('button');
+          rb.className = 'btn-reject';
+          rb.textContent = '🗑 Reject';
+          rb.dataset.id = btn.dataset.id;
+          rb.dataset.title = row.querySelector('.ap-title').textContent.trim();
+          cell.innerHTML = '';
+          cell.appendChild(ab);
+          cell.appendChild(rb);
+          attachApprove(ab);
+          attachReject(rb);
         } else {
           alert('Failed: ' + (data.error || 'unknown'));
           btn.disabled = false;
@@ -139,9 +179,10 @@ document.querySelectorAll('.btn-unapprove').forEach(function(btn) {
       })
       .catch(function() { alert('Network error'); btn.disabled = false; });
   });
-});
+}
 
-document.querySelectorAll('.btn-reject').forEach(function(btn) {
+// ── Helper: attach reject handler ────────────────────────────────────────────
+function attachReject(btn) {
   btn.addEventListener('click', function() {
     var id = btn.dataset.id;
     var title = btn.dataset.title;
@@ -159,7 +200,36 @@ document.querySelectorAll('.btn-reject').forEach(function(btn) {
       })
       .catch(function() { alert('Network error'); btn.disabled = false; });
   });
+}
+
+// ── Feature handler ───────────────────────────────────────────────────────────
+document.querySelectorAll('.btn-feature').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    fetch('/admin/feature/' + btn.dataset.id, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          document.querySelectorAll('.btn-feature').forEach(function(b) {
+            b.textContent = '☆ Feature';
+            b.classList.remove('btn-feature--active');
+            b.disabled = false;
+          });
+          btn.textContent = '★ Feature';
+          btn.classList.add('btn-feature--active');
+        } else {
+          alert('Feature failed: ' + (data.error || 'unknown error'));
+          btn.disabled = false;
+        }
+      })
+      .catch(function() { alert('Network error'); btn.disabled = false; });
+  });
 });
+
+// ── Wire up existing buttons on page load ─────────────────────────────────────
+document.querySelectorAll('.btn-approve').forEach(attachApprove);
+document.querySelectorAll('.btn-unapprove').forEach(attachUnapprove);
+document.querySelectorAll('.btn-reject').forEach(attachReject);
 </script>
 {% endblock %}
 {% endblock %}

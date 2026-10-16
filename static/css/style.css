@@ -1128,3 +1128,12 @@ textarea { resize: vertical; min-height: 90px; }
 }
 .search-no-results a { color: var(--accent); text-decoration: none; }
 .search-no-results a:hover { text-decoration: underline; }
+
+/* ── Approve button (admin plaques table) ────────────────────────────────────── */
+.btn-approve {
+  padding: 4px 10px; font-size: 12px; font-family: inherit; cursor: pointer;
+  background: #f0faf4; color: #1a7a43; border: 1px solid #1a7a43;
+  transition: background .12s, color .12s; white-space: nowrap; margin-right: 4px;
+}
+.btn-approve:hover { background: #1a7a43; color: #fff; }
+.btn-approve:disabled { opacity: .5; cursor: not-allowed; }

@@ -183,7 +183,7 @@ def submit():
     errors.extend(img_errors)
 
     if not saved_images:
-        return jsonify({"ok": False, "errors": ["No images could be saved."]}), 400
+        return jsonify({"ok": False, "errors": [f"No images could be saved. {errors}"]}), 400
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
