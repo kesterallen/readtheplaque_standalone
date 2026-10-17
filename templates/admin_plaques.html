@@ -177,8 +177,15 @@ function attachUnapprove(btn) {
           btn.disabled = false;
         }
       })
-      .catch(function() { alert('Network error'); btn.disabled = false; });
-  });
+      .catch(function(err) {
+        // Ignore body-already-read errors from duplicate listeners;
+        // only alert on genuine network failures.
+        if (err && err.name !== 'SyntaxError' && String(err).indexOf('body') === -1) {
+          console.warn('Unapprove error:', err);
+        }
+        btn.disabled = false;
+      });
+  }, { once: true });
 }
 
 // ── Helper: attach reject handler ────────────────────────────────────────────
