@@ -24,7 +24,12 @@
 
     </div>
     <div class="detail-info">
-      <h1>{{ plaque.title }}</h1>
+      <div class="detail-title-row">
+        <h1>{{ plaque.title }}</h1>
+        {% if is_admin %}
+        <a class="btn-edit-plaque" href="/admin/edit/{{ plaque.id }}">✏️ Edit</a>
+        {% endif %}
+      </div>
       {% if plaque.description_html %}
       <div class="plaque-text-box">{{ plaque.description_html | safe }}</div>
       {% endif %}

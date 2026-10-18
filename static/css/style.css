@@ -1137,3 +1137,21 @@ textarea { resize: vertical; min-height: 90px; }
 }
 .btn-approve:hover { background: #1a7a43; color: #fff; }
 .btn-approve:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Detail page admin edit button ───────────────────────────────────────────── */
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.detail-title-row h1 { margin-bottom: 0; flex: 1; }
+.btn-edit-plaque {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 12px; font-size: 13px; font-weight: 600;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); text-decoration: none;
+  white-space: nowrap; flex-shrink: 0;
+  transition: border-color .12s, color .12s;
+}
+.btn-edit-plaque:hover { border-color: var(--accent); color: var(--accent); }

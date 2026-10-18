@@ -11,6 +11,7 @@ from flask import (
     render_template,
     request,
     send_from_directory,
+    session,
     url_for,
 )
 
@@ -333,7 +334,7 @@ def plaque_detail(slug):
     plaque["description_html"] = (
         sanitise_description(plaque["description"]) if plaque.get("description") else ""
     )
-    return render_template("detail.html", plaque=plaque)
+    return render_template("detail.html", plaque=plaque, is_admin=session.get("admin", False))
 
 
 # ── Search results page ───────────────────────────────────────────────────────
