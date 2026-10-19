@@ -19,6 +19,7 @@ from config import ALLOWED_EXT, HCAPTCHA_SITEKEY, PER_PAGE, THUMB_DIR, UPLOAD_DI
 from spam import (
     check_content,
     check_honeypot,
+    check_rate_limit,
     HONEYPOT_FIELD,
     verify_captcha,
 )
@@ -148,6 +149,9 @@ def submit():
         .split(",")[0]
         .strip()
     )
+    rate_ok, rate_err = check_rate_limit(ip)
+    if not rate_ok:
+        return jsonify({"ok": False, "errors": [rate_err]}), 429
 
     # hCaptcha
     captcha_token = request.form.get("h-captcha-response", "")

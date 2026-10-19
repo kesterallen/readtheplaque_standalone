@@ -60,6 +60,37 @@ def verify_captcha(token: str) -> tuple[bool, str]:
         return True, ""
 
 
+# ── Rate limiting (in-memory, per IP) ────────────────────────────────────────
+# Uses a simple sliding-window counter stored in a module-level dict.
+# Per-process only — on multi-worker Gunicorn each worker has its own counter,
+# which is good enough for a low-traffic community site.
+import time
+from collections import defaultdict
+from threading import Lock
+
+_rate_lock = Lock()
+_rate_store: dict[str, list[float]] = defaultdict(list)
+
+
+def check_rate_limit(ip: str) -> tuple[bool, str]:
+    """Return (allowed, error_message).
+
+    Allows up to RATE_LIMIT_MAX submissions per IP within RATE_LIMIT_WINDOW seconds.
+    """
+    from config import RATE_LIMIT_MAX, RATE_LIMIT_WINDOW
+
+    now = time.monotonic()
+    cutoff = now - RATE_LIMIT_WINDOW
+    with _rate_lock:
+        timestamps = [t for t in _rate_store[ip] if t > cutoff]
+        if len(timestamps) >= RATE_LIMIT_MAX:
+            wait = int(RATE_LIMIT_WINDOW - (now - timestamps[0]))
+            return False, f"Too many submissions. Please wait {wait // 60 + 1} minute(s)."
+        timestamps.append(now)
+        _rate_store[ip] = timestamps
+    return True, ""
+
+
 # ── Honeypot ───────────────────────────────────────────────────────────────────
 
 HONEYPOT_FIELD = "website"  # rendered as display:none; bots fill it, humans don't
