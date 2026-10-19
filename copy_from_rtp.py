@@ -26,9 +26,12 @@ import random
 import re
 import requests
 from requests.exceptions import RequestException, JSONDecodeError
+import sys
 import time
 import unicodedata
 import urllib.request
+
+SLEEP_SECONDS = 180
 
 
 DEBUG_RANDOM = "debug_random"
@@ -38,6 +41,7 @@ MODES = set([DEBUG_RANDOM, DEBUG_BAD_EXAMPLARS, FULL_UPLOAD])
 
 LOCALHOST = "http://127.0.0.1:5000"  # N.B. no httpS
 PRODUCTION = "https://readtheplaque-standalone.fly.dev"
+OLD_URL = "https://read-the-plaque.appspot.com"
 TARGETS = set([LOCALHOST, PRODUCTION])
 
 TARGET = PRODUCTION
@@ -106,14 +110,40 @@ def main(mode, target):
     else:
         raise ValueError(f"mode cannot be {MODE}, allowed values are {MODES}")
 
+
+#    # REDO Logic:
+#    # Load the plaques which had a problem upload during the inital run:
+#    with open("problem_uploads_3_without_duplicate_slugs") as file:
+#        problem_uploads = {p.strip().split()[-1] for p in file.readlines() if ' ' in p}
+
     for i, rtp_plaque in enumerate(plaques):
-        # Skip the plaques already done before crash on 2026-sept-16
-        # slug should be plaque-campbell-house (20580/25531) on restart
-        i_reverse_countdown_last_good_before_crash  = 20581
-        i_reverse_countdown = len(rtp_data['features']) - i
-        if i_reverse_countdown > i_reverse_countdown_last_good_before_crash:
-            print(f"skipping {i_reverse_countdown} / {i_reverse_countdown_last_good_before_crash}")
-            continue
+#        # TODO: remove this:
+#        ## Skip the plaques already done before crash on 2026-sep-16
+#        ## status should be "plaque-campbell-house (20580/25531)" on restart
+#        #
+#        # Skip the plaques already done before crash on 2026-sep-21
+#        # status should be "war-of-1898 (12709/25531)" on restart
+#        #
+#        # Skip the plaques already done before crash on 2026-sep-23
+#        # Copying chl-156-los-angeles-plaza-olvera-street2 (10289/25531)
+#        #
+#        # Skip the plaques already done before crash on 2026-sep-25
+#        # Copying oakland-s-chinatowns (7707/25531)
+#        #
+#        # Skip the plaques already done before crash on 2026-sep-25
+#        # Copying guasti (7657/25531)
+#        #
+#        # Skip the plaques already done before crash on 2026-oct-2
+#        # Copying guasti (4300/25531)
+#        #
+#        # Skip the plaques already done before crash on 2026-oct-4
+#        # porters-rest (3099/25531)
+#        #
+#        i_reverse_countdown_last_good_before_crash  = 3099 #4300 # 7657 # 7707 # 10289 # 12709 # 20581
+#        i_reverse_countdown = len(rtp_data['features']) - i
+#        if i_reverse_countdown > i_reverse_countdown_last_good_before_crash:
+#            print(f"skipping {i_reverse_countdown} / {i_reverse_countdown_last_good_before_crash}")
+#            continue
 
         # Load from geojson
         #
@@ -124,14 +154,27 @@ def main(mode, target):
             results["problem"][slug] = "duplicate slug"
             continue
 
+#        # REDO Logic: Skip if slug not in re-do list
+#        if slug not in problem_uploads:
+#            continue
+
+        # SINGLE ITEM LOGIC: skip if the slug is not not the user's input slug
+        assert len(sys.argv) == 2, f"One arg only, got {len(sys.argv) - 1}"
+        user_input_slug = sys.argv[1]
+        if slug != user_input_slug:
+            continue
+        print(f"user input slug is {user_input_slug}")
+
+
         title = props["title"]
         latitude = rtp_plaque["geometry"]["coordinates"][1]
         longitude = rtp_plaque["geometry"]["coordinates"][0]
 
-        # Load from readtheplaque.com
+        # Load from legacy google version readtheplaque.com / OLD_URL = "http://read-the-plaque.appspot.com"
         #
-        rtp_url = f"https://readtheplaque.com/dict/full/{slug}"
-        print(f"Copying {slug} ({len(rtp_data['features']) - i}/{len(rtp_data['features'])})")
+        rtp_url = f"{OLD_URL}/dict/full/{slug}"
+        new_plaque_url = f"{TARGET}/plaque/{slug}"
+        print(f"Copying {slug} ({len(rtp_data['features']) - i}/{len(rtp_data['features'])}) from {OLD_URL}/plaque/{slug} to {new_plaque_url}")
 
         response = requests.get(rtp_url)
         try:
@@ -139,9 +182,11 @@ def main(mode, target):
                 results["problem"][slug] = f"no features in response.json(): '{response.json()}'"
                 continue
         except JSONDecodeError as e:
-                results["problem"][slug] = f"Bad JSON from response.json()"
-                time.sleep(60)
-                continue
+            results["problem"][slug] = f"Bad JSON from response.json()"
+            print(response.text)
+            #time.sleep(SLEEP_SECONDS)
+            sys.exit()
+            continue
 
         plaque_props = response.json()["features"][0]["properties"]
         description = plaque_props["description"]
@@ -189,6 +234,8 @@ def main(mode, target):
                 files = {"images": (img_filename, img_file)}
                 print("posting to ", url)
                 response = requests.post(url, data=data, files=files)
+                if "disallowed" in response.text:
+                    print(response.text)
             os.remove(img_filename)
 
             result_key = "uploaded" if response.status_code == 200 else "problem"
@@ -202,7 +249,8 @@ def main(mode, target):
         if i % 5 == 0:
             print_results(results)
 
-        time.sleep(60)
+        # SINGLE ITEM LOGIC: skip if the slug is not not the user's input slug
+        #time.sleep(SLEEP_SECONDS)
 
     print_results(results)
     response = requests.get(approve_url)
