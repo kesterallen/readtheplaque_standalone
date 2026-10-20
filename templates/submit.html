@@ -71,7 +71,19 @@
         <input type="text" id="longitude" placeholder="e.g. -74.0060">
       </div>
     </div>
-    <p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>
+    <!--<p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>-->
+    <p class="coord-hint">
+      <a href="#" id="geolocateBtn" class="link-accent">
+        Use my current location
+      </a>
+      ·
+      <a href="#" id="nearbyMe" class="link-accent" hidden>
+        Nearby Me
+      </a>
+    </p>
+
+
+
   </div>
 
   {# Honeypot — hidden from real users, filled by bots #}
@@ -270,7 +282,17 @@ document.addEventListener('click', e => {
 document.getElementById('geolocateBtn').addEventListener('click', e => {
   e.preventDefault();
   navigator.geolocation.getCurrentPosition(
-    pos => setCoords(pos.coords.latitude, pos.coords.longitude),
+    //pos => setCoords(pos.coords.latitude, pos.coords.longitude),
+    pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      setCoords(lat, lng);
+
+      const nearbyLink = document.getElementById('nearbyMe');
+      nearbyLink.href = `/map/${lat}/${lng}`;
+      nearbyLink.hidden = false;
+    },
     ()  => alert('Could not determine your location.')
   );
 });
@@ -299,7 +321,17 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     const data = await res.json();
     if (data.ok) {
       alertBox.className = 'alert alert-success';
-      alertBox.innerHTML = '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>Thanks! Your plaque has been submitted and is awaiting approval. It will appear on the map once reviewed.<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
+      alertBox.innerHTML = 
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+        'Thanks! Your plaque has been submitted and is awaiting approval. ' +
+        'It will appear on the <a href="/map/' + data.lat + '/' + data.lng + '/5">map</a> ' +
+        'and <a href="/plaques/' + data.slug + '">' + data.slug + '</a> ' +
+        'once it is reviewed.<br/>' + 
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
       alertBox.style.display = 'block';
       announceBox.innerHTML = '';
       clearForm();

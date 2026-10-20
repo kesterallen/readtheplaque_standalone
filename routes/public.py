@@ -109,7 +109,7 @@ def feed():
 @public_bp.route("/map")
 @public_bp.route("/map/<path:coords>")
 def map_view(coords=None):
-    lat, lng, zoom = 30.0, -160.0, 3
+    lat, lng, zoom = 30.0, -160.0, 2
     if coords:
         parts = coords.split("/")
         if len(parts) == 3:
@@ -202,7 +202,7 @@ def submit():
     with get_db() as db:
         set_tags_for_plaque(db, plaque_id, tag_names)
 
-    resp = {"ok": True, "slug": slug, "pending": True}
+    resp = {"ok": True, "slug": slug, "pending": True, "lat": lat, "lng": lng}
     if duplicates:
         resp["duplicates"] = duplicates
     return jsonify(resp)
@@ -359,7 +359,7 @@ def search_page(page=1):
             (like, like),
         ).fetchone()[0]
 
-        # TODO: note this is title and description search, might want to be able to limit to title-only
+        # TODO: note this seaches title AND description, might want to be able to limit to title-only
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1"
             " AND (title LIKE ? OR description LIKE ?)"
