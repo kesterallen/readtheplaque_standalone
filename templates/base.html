@@ -73,22 +73,22 @@
   });
   // Turn on the Nearby Me link
   window.addEventListener('DOMContentLoaded', () => {
-    const link = document.getElementById('nearbyMeLink');
-    if (link) {
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          //TODO clean this duplication up
-          const linkMobile = document.getElementById('nearbyMeLinkMobile');
+    const linkIds = [
+      'nearbyMeLink',
+      'nearbyMeLinkMobile'
+    ];
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        for (const linkId of linkIds) {
+          const link = document.getElementById(linkId);
           link.href = `/map/${lat}/${lng}/9`;
-          linkMobile.href = link.href;
-        },
-        ()  => alert('Could not determine your location.')
-      );
-    }
- });
-
+        }
+      },
+      ()  => console.log('Could not determine your location.')
+    );
+  });
 </script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
