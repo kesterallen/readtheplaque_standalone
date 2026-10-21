@@ -295,7 +295,7 @@ def edit(plaque_id):
             ),
         )
 
-    return redirect(url_for("admin.queue"))
+    return redirect(url_for("public.plaque_detail", slug=new_slug))
 
 
 # ── Rotate ─────────────────────────────────────────────────────────────────────
