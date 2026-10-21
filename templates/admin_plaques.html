@@ -115,6 +115,8 @@
   {{ paginator(page, total_pages, base_url) }}
 
 </div>
+{% endblock %}
+
 {% block scripts %}
 <script>
 // ── Helper: attach approve handler ───────────────────────────────────────────
@@ -238,5 +240,4 @@ document.querySelectorAll('.btn-approve').forEach(attachApprove);
 document.querySelectorAll('.btn-unapprove').forEach(attachUnapprove);
 document.querySelectorAll('.btn-reject').forEach(attachReject);
 </script>
-{% endblock %}
 {% endblock %}
