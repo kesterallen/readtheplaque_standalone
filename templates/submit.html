@@ -282,7 +282,6 @@ document.addEventListener('click', e => {
 document.getElementById('geolocateBtn').addEventListener('click', e => {
   e.preventDefault();
   navigator.geolocation.getCurrentPosition(
-    //pos => setCoords(pos.coords.latitude, pos.coords.longitude),
     pos => {
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
