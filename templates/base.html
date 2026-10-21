@@ -75,20 +75,25 @@
       'nearbyMeLink',
       'nearbyMeLinkMobile'
     ];
+
     navigator.geolocation.getCurrentPosition(
       pos => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+
         for (const linkId of linkIds) {
           const link = document.getElementById(linkId);
-          link.href = `/map/${lat}/${lng}/9`;
+          if (link) {
+            link.href = `/map/${lat}/${lng}/9`;
+          }
         }
       },
-      ()  => {
-        console.log('Could not determine your location, hiding button')
+      () => {
         for (const linkId of linkIds) {
           const link = document.getElementById(linkId);
-          link.display = "none";
+          if (link) {
+            link.style.display = 'none';
+          }
         }
       }
     );

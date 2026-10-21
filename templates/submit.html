@@ -304,14 +304,14 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     const data = await res.json();
     if (data.ok) {
       alertBox.className = 'alert alert-success';
-      alertBox.innerHTML = 
+      alertBox.innerHTML =
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         'Thanks! Your plaque has been submitted and is awaiting approval. ' +
         'It will appear on the <a href="/map/' + data.lat + '/' + data.lng + '/5">map</a> ' +
         'and <a href="/plaques/' + data.slug + '">' + data.slug + '</a> ' +
-        'once it is reviewed.<br/>' + 
+        'once it is reviewed.<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
