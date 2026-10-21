@@ -71,19 +71,7 @@
         <input type="text" id="longitude" placeholder="e.g. -74.0060">
       </div>
     </div>
-    <!--<p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>-->
-    <p class="coord-hint">
-      <a href="#" id="geolocateBtn" class="link-accent">
-        Use my current location
-      </a>
-      ·
-      <a href="#" id="nearbyMe" class="link-accent" hidden>
-        Nearby Me
-      </a>
-    </p>
-
-
-
+    <p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>
   </div>
 
   {# Honeypot — hidden from real users, filled by bots #}
@@ -287,10 +275,6 @@ document.getElementById('geolocateBtn').addEventListener('click', e => {
       const lng = pos.coords.longitude;
 
       setCoords(lat, lng);
-
-      const nearbyLink = document.getElementById('nearbyMe');
-      nearbyLink.href = `/map/${lat}/${lng}`;
-      nearbyLink.hidden = false;
     },
     ()  => alert('Could not determine your location.')
   );
