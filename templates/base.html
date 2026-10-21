@@ -16,7 +16,6 @@
       <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
-      <a href="/" class="nav-link">Home</a>
       <a href="/map" class="nav-link">Big Map</a>
       <a href="/map" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <a href="/random" class="nav-link">Random</a>
@@ -28,7 +27,6 @@
 </header>
 
 <div class="mobile-nav" id="mobileNav">
-  <a href="/" class="mobile-nav-link">Home</a>
   <a href="/map" class="mobile-nav-link">Big Map</a>
   <a href="/map" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <a href="/random" class="mobile-nav-link">Random</a>
@@ -86,7 +84,13 @@
           link.href = `/map/${lat}/${lng}/9`;
         }
       },
-      ()  => console.log('Could not determine your location.')
+      ()  => {
+        console.log('Could not determine your location, hiding button')
+        for (const linkId of linkIds) {
+          const link = document.getElementById(linkId);
+          link.display = "none";
+        }
+      }
     );
   });
 </script>
