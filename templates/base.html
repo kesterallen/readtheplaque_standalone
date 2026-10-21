@@ -18,9 +18,10 @@
     <nav class="nav">
       <a href="/" class="nav-link">Home</a>
       <a href="/map" class="nav-link">Big Map</a>
+      <a href="/map" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <a href="/random" class="nav-link">Random</a>
       <a href="/about" class="nav-link">About</a>
-      <a href="/submit" class="nav-link nav-link--submit">+ Submit Plaque</a>
+      <a href="/submit" class="nav-link nav-link--submit">Submit A Plaque</a>
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Menu">☰</button>
   </div>
@@ -29,6 +30,7 @@
 <div class="mobile-nav" id="mobileNav">
   <a href="/" class="mobile-nav-link">Home</a>
   <a href="/map" class="mobile-nav-link">Big Map</a>
+  <a href="/map" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <a href="/random" class="mobile-nav-link">Random</a>
   <a href="/about" class="mobile-nav-link">About</a>
   <a href="/submit" class="mobile-nav-link">Submit Plaque</a>
@@ -69,6 +71,24 @@
   document.getElementById('navToggle').addEventListener('click', () => {
     document.getElementById('mobileNav').classList.toggle('open');
   });
+  // Turn on the Nearby Me link
+  window.addEventListener('DOMContentLoaded', () => {
+    const link = document.getElementById('nearbyMeLink');
+    if (link) {
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          //TODO clean this duplication up
+          const linkMobile = document.getElementById('nearbyMeLinkMobile');
+          link.href = `/map/${lat}/${lng}/9`;
+          linkMobile.href = link.href;
+        },
+        ()  => alert('Could not determine your location.')
+      );
+    }
+ });
+
 </script>
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
