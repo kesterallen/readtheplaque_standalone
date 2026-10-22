@@ -84,7 +84,7 @@
   <div class="h-captcha" data-sitekey="{{ hcaptcha_sitekey }}" data-theme="light"></div>
   {% endif %}
 
-  <button class="btn-submit" id="submitBtn">Submit Plaque →</button>
+  <button class="btn-submit" id="submitBtn">Submit A Plaque</button>
 </div>
 {% endblock %}
 
@@ -309,9 +309,9 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         'Thanks! Your plaque has been submitted and is awaiting approval. ' +
-        'It will appear on the <a href="/map/' + data.lat + '/' + data.lng + '/5">map</a> ' +
-        'and <a href="/plaques/' + data.slug + '">' + data.slug + '</a> ' +
-        'once it is reviewed.<br/>' +
+        'It will appear on the map <a href="/map/' + data.lat + '/' + data.lng + '/5">here</a> ' +
+        'and be at the URL <a href="/plaques/' + data.slug + '">' + data.slug + '</a> ' +
+        'once it is approved.<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
@@ -326,7 +326,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
     showErrors(['Network error — please try again.']);
   } finally {
     btn.disabled    = false;
-    btn.textContent = 'Submit Plaque →';
+    btn.textContent = 'Submit A Plaque';
   }
 });
 

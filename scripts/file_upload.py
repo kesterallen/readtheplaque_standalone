@@ -138,7 +138,7 @@ def main():
 
             print(f"\nPrepared {len(paths)} image(s).")
             print("Review the form and complete any CAPTCHA or required fields.")
-            print("Click Submit Plaque when ready; close the browser when done.")
+            print("Click 'Submit A Plaque' when ready; close the browser when done.")
 
             page.wait_for_event("close", timeout=0)
 

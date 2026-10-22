@@ -31,7 +31,7 @@
   <a href="/map" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <a href="/random" class="mobile-nav-link">Random</a>
   <a href="/about" class="mobile-nav-link">About</a>
-  <a href="/submit" class="mobile-nav-link">Submit Plaque</a>
+  <a href="/submit" class="mobile-nav-link">Submit A Plaque</a>
 </div>
 
 <a href="/map" class="site-banner">
@@ -99,16 +99,14 @@
     );
   });
 </script>
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <script>
 // Shared MapLibre helpers available to all templates.
 var _cartoKey = {{ (carto_api_key | default("")) | tojson }};
 
 function mapStyle() {
   if (_cartoKey) {
-    //return "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json";
-    //return "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
     return "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
   }
   return "https://demotiles.maplibre.org/style.json";
@@ -116,13 +114,18 @@ function mapStyle() {
 
 function makeMap(container, opts) {
   var o = opts || {};
-  return new maplibregl.Map({
+  var m = new maplibregl.Map({
     container: container,
     style: mapStyle(),
     center: o.center || [0, 0],
     bearing: 0,
     zoom: o.zoom !== undefined ? o.zoom : 0,
   });
+  m.on('style.load', function() {
+    m.setProjection({ type: 'globe' });
+  });
+  m.addControl(new maplibregl.GlobeControl());
+  return m;
 }
 </script>
 <script>
