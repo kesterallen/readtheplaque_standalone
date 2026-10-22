@@ -32,6 +32,9 @@
         <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
       </div>
       <div class="qc-body">
+        {% if p.slug.split('-')[-1] | int(0) > 0 %}
+          ⚠️ Duplicate slug: <code>{{ p.slug }}</code>
+        {% endif %}
         <p class="qc-title">{{ p.title }}</p>
         <div class="qc-meta">
           🌐 {{ "%.4f"|format(p.latitude) }}, {{ "%.4f"|format(p.longitude) }}<br>
