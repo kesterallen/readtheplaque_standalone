@@ -196,15 +196,13 @@ def submit():
     created_at = request.form.get("created_at", None)
     updated_at = request.form.get("updated_at", None)
 
-    plaque_id, slug, duplicates = _insert_plaque_rows(
+    plaque_id, slug = _insert_plaque_rows(
         title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
     )
     with get_db() as db:
         set_tags_for_plaque(db, plaque_id, tag_names)
 
     resp = {"ok": True, "slug": slug, "pending": True, "lat": lat, "lng": lng}
-    if duplicates:
-        resp["duplicates"] = duplicates
     return jsonify(resp)
 
 
@@ -233,13 +231,13 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
         # Verify uniqueness of image_hash (prevent dup images):
         with get_db() as db:
             duplicate_plaque = db.execute(
-                "SELECT p.slug AS slug "
+                "SELECT p.title AS title, p.slug AS slug "
                 "FROM plaque_images pi "
                 "JOIN  plaques p ON pi.plaque_id = p.id "
                 "WHERE pi.image_hash=?", (image_hash,),
             ).fetchone()
             if duplicate_plaque:
-                errors.append(f"Image {image_file} is a duplicate of /plaquues/{duplicate_plaque['slug']}.")
+                errors.append(f"""Image {image_file.filename} is a duplicate of <a href="/plaque/{duplicate_plaque['slug']}">{duplicate_plaque['title']}</a>.""")
                 continue
         
         filename = new_image_filename(ext)
@@ -260,7 +258,7 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
 
 def _insert_plaque_rows(
     title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
-) -> tuple[int, str, list[str]]:
+) -> tuple[int, str]:
     with get_db() as db:
         primary = saved_images[0]
         slug = make_or_update_slug(db, title)
@@ -305,7 +303,6 @@ def _insert_plaque_rows(
         ).fetchone()["id"]
 
         saved = 0
-        duplicates: list[str] = []
         for i, img in enumerate(saved_images):
             db.execute(
                 "INSERT INTO plaque_images"
@@ -322,7 +319,7 @@ def _insert_plaque_rows(
             )
             saved += 1
 
-    return plaque_id, slug, duplicates
+    return plaque_id, slug
 
 
 # ── Plaque detail ─────────────────────────────────────────────────────────────
