@@ -71,8 +71,9 @@ def init_db() -> None:
         created_at TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE INDEX IF NOT EXISTS idx_plaque_images_plaque ON plaque_images(plaque_id);
-    CREATE INDEX IF NOT EXISTS idx_plaque_images_hash   ON plaque_images(plaque_id, image_hash);
+    CREATE INDEX IF NOT EXISTS idx_plaque_images_plaque      ON plaque_images(plaque_id);
+    CREATE INDEX IF NOT EXISTS idx_plaque_images_hash        ON plaque_images(image_hash);
+    CREATE INDEX IF NOT EXISTS idx_plaque_images_plauqe_hash ON plaque_images(plaque_id, image_hash);
 
     CREATE INDEX IF NOT EXISTS idx_plaques_approved_created ON plaques(approved, created_at DESC);
     """)
