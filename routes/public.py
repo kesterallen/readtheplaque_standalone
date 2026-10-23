@@ -229,6 +229,20 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
         ext = image_file.filename.rsplit(".", 1)[-1].lower()
         data = image_file.read()
         image_hash = hashlib.sha256(data).hexdigest()
+        # TODO: check uniqueness of image_has here?
+        # with get_db() as db:
+        #     duplicate_plaque = db.execute(
+        #         "SELECT p.slug AS slug"
+        #         "FROM plaque_images pi "
+        #         "JOIN  plauqes p ON pi.plauqe_id = p.id "
+        #         "WHERE image_hash=?", (image_hash,),
+        #     ).fetchone()
+        #     if duplicate_plaque:
+        #         errors.append(f"Image {image_file} is a duplicate of /plauques/{duplicate_plaque['slug']}.")
+        # # TODO: to which plaque
+        #
+        # TODO: add index on image_hash
+        #     ?? CREATE INDEX IF NOT EXISTS idx_plaque_images_hash ON plaque_images(image_hash);
         filename = new_image_filename(ext)
         with open(subdir_path(UPLOAD_DIR, filename), "wb") as fh:
             fh.write(data)
