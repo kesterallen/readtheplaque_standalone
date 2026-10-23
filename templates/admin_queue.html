@@ -32,9 +32,6 @@
         <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
       </div>
       <div class="qc-body">
-        {% if p.slug.split('-')[-1] | int(0) > 0 %}
-          ⚠️ Duplicate slug: <code>{{ p.slug }}</code>
-        {% endif %}
         <p class="qc-title">{{ p.title }}</p>
         <div class="qc-meta">
           🌐 {{ "%.4f"|format(p.latitude) }}, {{ "%.4f"|format(p.longitude) }}<br>
@@ -48,6 +45,9 @@
       <div class="qc-actions" id="actions-{{ p.id }}">
         <button class="qc-btn qc-btn-approve" onclick="decide({{ p.id }}, 'approve')">
           ✅ Approve
+          {% if p.slug.split('-')[-1] | int(0) > 0 %}
+            <p class="qc-slug-warn">⚠️ Duplicate slug? <code>{{ p.slug }}</code></p>
+          {% endif %}
         </button>
         <a class="qc-btn qc-btn-edit" href="/admin/edit/{{ p.id }}">
           ✏️ Edit

@@ -1155,3 +1155,23 @@ textarea { resize: vertical; min-height: 90px; }
   transition: border-color .12s, color .12s;
 }
 .btn-edit-plaque:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Duplicate slug warning (admin queue) ────────────────────────────────────── */
+.qc-slug-warn {
+  background: #fde8e8;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 12px;
+  padding: 6px 10px;
+  margin: 8px 0 0;
+  border-radius: 2px;
+}
+.qc-slug-warn code {
+  font-family: monospace;
+  font-weight: 700;
+}
+
+/* Red border on the card itself */
+.queue-card:has(.qc-slug-warn) {
+  border: 2px solid var(--accent);
+}
