@@ -16,10 +16,13 @@ import json
 from collections import defaultdict
 from threading import Lock
 
+
 from config import (
     HCAPTCHA_SECRET,
     HCAPTCHA_SITEKEY,
     HCAPTCHA_VERIFY_URL,
+    RATE_LIMIT_MAX,
+    RATE_LIMIT_WINDOW,
 )
 
 # ── hCaptcha ───────────────────────────────────────────────────────────────────
@@ -64,9 +67,6 @@ def verify_captcha(token: str) -> tuple[bool, str]:
 # Uses a simple sliding-window counter stored in a module-level dict.
 # Per-process only — on multi-worker Gunicorn each worker has its own counter,
 # which is good enough for a low-traffic community site.
-import time
-from collections import defaultdict
-from threading import Lock
 
 _rate_lock = Lock()
 _rate_store: dict[str, list[float]] = defaultdict(list)
@@ -77,8 +77,6 @@ def check_rate_limit(ip: str) -> tuple[bool, str]:
 
     Allows up to RATE_LIMIT_MAX submissions per IP within RATE_LIMIT_WINDOW seconds.
     """
-    from config import RATE_LIMIT_MAX, RATE_LIMIT_WINDOW
-
     now = time.monotonic()
     cutoff = now - RATE_LIMIT_WINDOW
     with _rate_lock:
@@ -117,7 +115,7 @@ _URL_RE = re.compile(r"https?://|www\.", re.IGNORECASE)
 
 # Common spam keywords (extend as needed)
 _SPAM_WORDS = re.compile(
-    r"\b(casino|viagra|cialis|porn|xxx|crypto|bitcoin|nft|loan|payday|seo\s+service|buy\s+followers)\b",
+    r"\b(viagra|cialis|porn|xxx|crypto|bitcoin|nft|seo\s+service|buy\s+followers)\b",
     re.IGNORECASE,
 )
 
