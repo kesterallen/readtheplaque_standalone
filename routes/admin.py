@@ -1,7 +1,6 @@
 """Admin routes: login, queue, plaques list, edit, approve, reject, rotate, feature, images."""
 
 import datetime
-import io
 import os
 import random
 
@@ -295,7 +294,11 @@ def edit(plaque_id):
             ),
         )
 
-    return redirect(url_for("public.plaque_detail", slug=new_slug))
+    if approved:
+        url = url_for("public.plaque_detail", slug=new_slug)
+    else:
+        url = url_for("admin.queue")
+    return redirect(url)
 
 
 # ── Rotate ─────────────────────────────────────────────────────────────────────
