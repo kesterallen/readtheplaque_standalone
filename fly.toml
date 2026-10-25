@@ -22,3 +22,7 @@ primary_region = "iad"
   source = "readtheplaque_volume"
   destination = "/data"
   initial_size = "30gb"
+
+[[statics]]
+  guest_path = "/app/public"
+  url_prefix = "/"

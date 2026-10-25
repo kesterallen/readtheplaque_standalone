@@ -12,6 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# For robots.txt. Also see [[statics]] section of fly.toml
+RUN mkdir /app/public
+COPY ./static/robots.txt /app/public
+
 # Create local fallback dirs (used when /data volume isn't mounted)
 RUN mkdir -p /data/uploads /data/thumbs
 
