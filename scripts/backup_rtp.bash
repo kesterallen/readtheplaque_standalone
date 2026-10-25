@@ -5,7 +5,8 @@ set -x
 set -e
 
 TEMPORARY_BACKUP_FILE="/data/safe_backup-plaques.db"
-LOCAL_BACKUP_FILE="./safe_backup-plaques.db"
+LOCAL_BACKUP_FILE="../readtheplaque_standalone_backup/safe_backup-plaques.db"
+LOCAL_TARFILE="../readtheplaque_standalone_backup/data_volume_backup.tgz"
 
 # Run sqlite database python backup script on fly.io server via "fly ssh console"
 fly ssh console -a readtheplaque-standalone -C "rm -f $TEMPORARY_BACKUP_FILE"
@@ -17,5 +18,5 @@ fly sftp    get -a readtheplaque-standalone $TEMPORARY_BACKUP_FILE $LOCAL_BACKUP
 fly ssh console -a readtheplaque-standalone -C "rm -f $TEMPORARY_BACKUP_FILE"
 
 # Copy fly.io:/data to local -- tar the /data volume, stream to STDOUT and direct that to a local file
-fly ssh console -a readtheplaque-standalone -C "tar cvfz - /data" > data_volume_backup.tgz
+fly ssh console -a readtheplaque-standalone -C "tar cvfz - /data" > $LOCAL_TARFILE
 
