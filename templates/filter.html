@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 {% from "macros/paginator.html" import paginator %}
+{% from "macros/plaque_map.html" import plaque_map %}
 {% block title %}{% if filter_type == "tag" %}#{{ name }}{% else %}Submitted by {{ name }}{% endif %} — Read The Plaque{% endblock %}
 
 {% block content %}
 <div class="tag-page">
-  <div class="tag-page-header">
-    <div>
+  <div class="index-hero">
+    <div class="search-results-hero-info">
       {% if filter_type == "tag" %}
       <p class="tag-eyebrow">Tag</p>
       <h1 class="tag-page-title"><span class="tag-pill tag-pill--large">{{ name }}</span></h1>
@@ -13,26 +14,42 @@
       <p class="tag-eyebrow">Submitted by</p>
       <h1 class="tag-page-title"><span class="tag-pill tag-pill--large">👤 {{ name }}</span></h1>
       {% endif %}
+      <div class="tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
     </div>
-    <div class="tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
+
+    {% if plaques %}
+    <div class="index-map-panel">
+      <div class="index-map-header">
+        This page's plaque{{ 's' if total != 1 }}
+      </div>
+      {{ plaque_map("filter-map", plaques, height="100%") }}
+    </div>
+    {% else %}
+    <div class="index-map-panel search-no-results">
+      <p>No approved plaques
+        {% if filter_type == "tag" %}with this tag{% else %}from this submitter{% endif %}
+        yet.
+      </p>
+    </div>
+    {% endif %}
   </div>
 
-  {% if not plaques %}
-  <p class="tag-empty">
-    No approved plaques {% if filter_type == "tag" %} with this tag {% else %}
-    from this submitter {% endif %} yet.
-  </p>
-  {% else %}
-  <div class="plaque-grid">
-    {% for p in plaques %}
-    <a href="/plaque/{{ p.slug }}" class="plaque-card">
-      <div class="card-img-wrap">
-        <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
-      </div>
-      <p class="card-title">{{ p.title }}</p>
-    </a>
-    {% endfor %}
-  </div>
+  {% if plaques %}
+  <section class="recent-section">
+    <div class="recent-header">
+      <h2>Plaques</h2>
+    </div>
+    <div class="plaque-grid">
+      {% for p in plaques %}
+      <a href="/plaque/{{ p.slug }}" class="plaque-card">
+        <div class="card-img-wrap">
+          <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
+        </div>
+        <p class="card-title">{{ p.title }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
   {% if filter_type == "tag" %}
