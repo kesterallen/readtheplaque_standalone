@@ -8,7 +8,7 @@ from pathlib import Path
 from PIL import Image, ExifTags
 from playwright.sync_api import sync_playwright
 
-URL = "https://readtheplaque-standalone.fly.dev/submit"
+URL = "https://readtheplaque.com/submit"
 MAX_FILE_SIZE = 16 * 1024 * 1024
 
 GPS_IFD = ExifTags.IFD.GPSInfo
