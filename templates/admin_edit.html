@@ -68,7 +68,7 @@
       <div class="edit-gallery" id="editGallery">
         {% for img in plaque.images %}
         <div class="edit-gallery-item" id="gitem-{{ img.id }}">
-          <img src="{{ img.thumb_url }}" alt="">
+          <img src="{{ img.image_url }}" alt="">
           {% if img.is_primary %}<span class="edit-gallery-primary">Primary</span>{% endif %}
           <div class="edit-gallery-actions">
             {% if not img.is_primary %}
