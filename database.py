@@ -18,7 +18,7 @@ def get_db() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
-
+# TODO: add latitude_radians and longitude_radians here, and change api.py:nearby?
 def init_db() -> None:
     """Create schema tables if they don't exist, then seed with sample data."""
     db = get_db()
