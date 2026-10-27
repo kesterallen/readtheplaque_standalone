@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin
+Disallow: /api
+Disallow: /map
+Disallow: /search
+Disallow: /submit
+Disallow: /submitter
+Disallow: /tag
