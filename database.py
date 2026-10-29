@@ -28,7 +28,6 @@ def get_db() -> sqlite3.Connection:
 # dy = candidate_lat_r - origin_lat_r
 # return dx * dx + dy * dy
 
-return dx * dx + dy * dy
 def init_db() -> None:
     """Create schema tables if they don't exist, then seed with sample data."""
     db = get_db()
