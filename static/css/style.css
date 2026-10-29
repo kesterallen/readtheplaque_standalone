@@ -1175,3 +1175,13 @@ textarea { resize: vertical; min-height: 90px; }
 .queue-card:has(.qc-slug-warn) {
   border: 2px solid var(--accent);
 }
+
+/* ── Duplicate-slug hint (submit page) ───────────────────────────────────────── */
+.slug-hint { font-size: 12px; margin: 6px 0 0; line-height: 1.5; }
+.slug-hint code { font-family: monospace; font-weight: 700; }
+.slug-hint--ok   { color: #2e7d32; }
+.slug-hint--warn {
+  color: #8a5a00; background: #fff8e1; border: 1px solid #f0c36d;
+  padding: 6px 10px;
+}
+.slug-hint--warn a { color: inherit; font-weight: 700; }

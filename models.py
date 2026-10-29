@@ -203,6 +203,14 @@ def sync_primary_image(db: sqlite3.Connection, plaque_id: int) -> None:
 
 
 # ── Slug helpers ──────────────────────────────────────────────────────────────
+def slugify(title: str) -> str:
+    """Convert a title to a base slug (no uniqueness suffix).
+
+    This is the single place where titles become slugs.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "plaque"
+
+
 def make_or_update_slug(db: sqlite3.Connection, title: str, exclude_id: Optional[int] = -1) -> str:
     """
     Generate a unique slug from title, excluding the given plaque id from
@@ -210,7 +218,7 @@ def make_or_update_slug(db: sqlite3.Connection, title: str, exclude_id: Optional
     conflicting with itself).
     Make a new slug by leaving off the final arg.
     """
-    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or "plaque"
+    base = slugify(title)
     slug = base
     suffix = 1
     sql = "SELECT COUNT(*) FROM plaques WHERE slug=? AND id != ?"

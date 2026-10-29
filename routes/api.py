@@ -6,7 +6,7 @@ from flask import Blueprint, abort, jsonify, request
 
 from database import get_db
 from config import NEARBY_LIMIT
-from models import get_tags_for_plaque, plaque_to_dict
+from models import get_tags_for_plaque, make_or_update_slug, plaque_to_dict, slugify
 
 EARTH_RADIUS_KM = 6371
 
@@ -81,22 +81,20 @@ def search():
 
 
 # ── Nearby ─────────────────────────────────────────────────────────────────────
-# TODO
-
-def _get_closest_plaques(target_lat: float, target_lng: float, limit: int = 10, search_degree_radius: float = 0.018, exclude_id: int = -1):
+def _get_closest_plaques(lat: float, lng: float, limit: int = 10, search_width_deg: float = 0.018, exclude_id: int = -1):
     # Pre-calculate target constants
-    target_lat_rad = math.radians(target_lat)
-    target_lng_rad = math.radians(target_lng)
+    lat_rad = math.radians(lat)
+    lng_rad = math.radians(lng)
 
     closest_plaques = []
 
     # Start with a small search window and expand if expand if not enough found
     with get_db() as db:
-        while len(closest_plaques) < limit and search_degree_radius < 180:
-            lat_min = target_lat - search_degree_radius
-            lat_max = target_lat + search_degree_radius
-            lng_min = target_lng - search_degree_radius
-            lng_max = target_lng + search_degree_radius
+        while len(closest_plaques) < limit and search_width_deg < 180:
+            lat_min = lat - search_width_deg
+            lat_max = lat + search_width_deg
+            lng_min = lng - search_width_deg
+            lng_max = lng + search_width_deg
 
             # Law of Cosines sort inside the indexed bounding box
             query = f"""
@@ -114,16 +112,16 @@ def _get_closest_plaques(target_lat: float, target_lng: float, limit: int = 10, 
             """
 
             closest_plaques = db.execute(query, (
-                target_lat_rad, target_lat_rad, target_lng_rad,
+                lat_rad, lat_rad, lng_rad,
                 lat_min, lat_max,
                 lng_min, lng_max,
                 exclude_id,
                 limit
             )).fetchall()
 
-            # If not enough plaques were found, enlarge the search radius and try again
+            # If not enough plaques were found, 10x the search area (~3.2x width) 
             if len(closest_plaques) < limit:
-                search_degree_radius *= 3
+                search_width_deg *= 3.2
 
     return closest_plaques
 
@@ -149,6 +147,40 @@ def nearby(plaque_id):
         results.append(d)
 
     return jsonify(results[:NEARBY_LIMIT])
+
+
+# ── Slug check ───────────────────────────────────────────────────────────────────
+@api_bp.route("/slug")
+def slug_check():
+    """Convert a title to a slug and report whether it is already taken.
+
+    Uses the same slugify() / make_or_update_slug() as /submit and
+    /admin/edit, so the answer always matches what would actually be saved.
+    """
+    title = request.args.get("title", "").strip()
+    if not title:
+        return jsonify({"error": "title required"}), 400
+    base = slugify(title)
+    with get_db() as db:
+        slug = make_or_update_slug(db, title)
+        taken = slug != base  # the unique slug only differs if base is in use
+        existing = None
+        if taken:
+            existing = db.execute(
+                "SELECT title, slug, approved FROM plaques WHERE slug=?", (base,)
+            ).fetchone()
+    return jsonify(
+        {
+            "slug": slug,
+            "base_slug": base,
+            "exists": taken,
+            "existing_title": existing["title"] if existing else None,
+            # Only link to the page if it is public (unapproved pages 404)
+            "existing_url": (
+                f"/plaque/{existing['slug']}" if existing and existing["approved"] else None
+            ),
+        }
+    )
 
 
 # ── Single plaque ──────────────────────────────────────────────────────────────

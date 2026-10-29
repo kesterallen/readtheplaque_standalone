@@ -15,21 +15,11 @@
   <div id="alertBox" class="alert-box"></div>
 
   <div class="form-section">
-    <h2>📸 Photo</h2>
-    <div class="drop-zone" id="dropZone">
-      <input type="file" id="imageFile" name="images" accept="image/*" multiple>
-      <div class="dz-icon">🏛️</div>
-      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB · first image is primary</small></div>
-    </div>
-    <div id="imgPreviewWrap" class="img-preview-wrap"></div>
-    <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
-  </div>
-
-  <div class="form-section">
     <h2>📝 Details</h2>
     <div class="form-group">
       <label for="title">Plaque Title *</label>
       <input type="text" id="title" placeholder="e.g. Site of the First Town Hall">
+      <p id="slugHint" class="slug-hint is-hidden" aria-live="polite"></p>
     </div>
     <div class="form-group">
       <label for="description">Plaque Text (optional)</label>
@@ -44,6 +34,17 @@
       <input type="text" id="tags" name="tags" placeholder="e.g. history, war, boston — comma separated">
       <p class="field-hint">Separate multiple tags with commas</p>
     </div>
+  </div>
+
+  <div class="form-section">
+    <h2>📸 Photo</h2>
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="imageFile" name="images" accept="image/*" multiple>
+      <div class="dz-icon">🏛️</div>
+      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB · first image is primary</small></div>
+    </div>
+    <div id="imgPreviewWrap" class="img-preview-wrap"></div>
+    <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
   </div>
 
   <div class="form-section">
@@ -310,7 +311,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         'Thanks! Your plaque has been submitted and is awaiting approval. ' +
         'It will appear on the map <a href="/map/' + data.lat + '/' + data.lng + '/5">here</a> ' +
-        'and be at the URL <a href="/plaques/' + data.slug + '">' + data.slug + '</a> ' +
+        'and be at the URL <a href="/plaque/' + data.slug + '">' + data.slug + '</a> ' +
         'once it is approved.<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
         '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
@@ -356,5 +357,67 @@ function showErrors(errs) {
   alertBox.style.display = 'block';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// ── Duplicate-slug check (uses the server's slug generator via /api/slug) ─────
+(function () {
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  var titleEl = document.getElementById('title');
+  var hintEl  = document.getElementById('slugHint');
+  var lastChecked = null;
+  var controller = null;
+
+  function showHint(html, cls) {
+    hintEl.innerHTML = html;
+    hintEl.className = 'slug-hint ' + cls;
+  }
+
+  function clearHint() {
+    hintEl.className = 'slug-hint is-hidden';
+    hintEl.innerHTML = '';
+  }
+
+  async function checkSlug() {
+    var title = titleEl.value.trim();
+    if (!title) { lastChecked = null; clearHint(); return; }
+    if (title === lastChecked) return;          // don't re-query unchanged text
+    lastChecked = title;
+
+    if (controller) controller.abort();         // drop any in-flight request
+    controller = new AbortController();
+
+    try {
+      var res = await fetch('/api/slug?title=' + encodeURIComponent(title),
+                            { signal: controller.signal });
+      if (!res.ok) throw new Error('slug check failed');
+      var data = await res.json();
+
+      if (title !== titleEl.value.trim()) return;   // user kept typing; stale
+
+      if (data.exists) {
+        var existing = data.existing_url
+          ? '<a href="' + esc(data.existing_url) + '" target="_blank" rel="noopener">'
+              + esc(data.existing_title) + '</a>'
+          : '“' + esc(data.existing_title) + '” (awaiting approval)';
+        showHint('⚠️ A plaque with a similar title already exists: ' + existing +
+                 '. This one would be saved as <code>' + esc(data.slug) + '</code>. ' +
+                 'Check it isn’t a duplicate.', 'slug-hint--warn');
+      } else {
+        showHint('✓ Available as <code>' + esc(data.slug) + '</code>', 'slug-hint--ok');
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') clearHint();   // fail quietly; it's only advisory
+    }
+  }
+
+  titleEl.addEventListener('blur', checkSlug);
+  titleEl.addEventListener('input', function () {
+    // Hide a stale result as soon as the text changes
+    if (titleEl.value.trim() !== lastChecked) clearHint();
+  });
+})();
 </script>
 {% endblock %}
