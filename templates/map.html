@@ -10,13 +10,6 @@
   <div class="map-loading" id="mapLoading" role="status" aria-label="Loading map">
     <div class="map-spinner" aria-hidden="true"></div>
   </div>
-
-  <div class="map-search-bar">
-    <input type="text" id="mapSearch" placeholder="Search plaques…" autocomplete="off">
-    <button id="mapSearchBtn">🔍</button>
-  </div>
-  <div class="map-search-results" id="mapSearchResults"></div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -188,54 +181,6 @@ map.on('load', function () {
       hideMapLoading();
     });
 
-  // ── Search ──────────────────────────────────────────────────────────────────
-  var searchInput   = document.getElementById('mapSearch');
-  var searchResults = document.getElementById('mapSearchResults');
-  var debounce;
-
-  searchInput.addEventListener('input', function () {
-    var q = searchInput.value.trim();
-    clearTimeout(debounce);
-    if (!q) { searchResults.style.display = 'none'; return; }
-    debounce = setTimeout(function () { runSearch(q); }, 300);
-  });
-
-  document.getElementById('mapSearchBtn').addEventListener('click', function () {
-    var q = searchInput.value.trim();
-    if (q) runSearch(q);
-  });
-
-  function runSearch(q) {
-    fetch('/api/search?q=' + encodeURIComponent(q))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (!data.length) {
-          searchResults.innerHTML = '<div class="gsr-empty">No results for "' + esc(q) + '"</div>';
-        } else {
-          searchResults.innerHTML = data.slice(0, 10).map(function (p) {
-            return (
-              '<div class="gsr-item" data-lat="' + p.latitude + '" data-lng="' + p.longitude + '">' +
-              '<img src="' + esc(p.thumb_url || p.image_url) + '" loading="lazy" alt="">' +
-              '<div class="gsr-info"><strong>' + esc(p.title) + '</strong></div></div>'
-            );
-          }).join('');
-          searchResults.querySelectorAll('.gsr-item').forEach(function (el) {
-            el.addEventListener('click', function () {
-              map.flyTo({ center: [+el.dataset.lng, +el.dataset.lat], zoom: 14 });
-              searchResults.style.display = 'none';
-              searchInput.value = '';
-            });
-          });
-        }
-        searchResults.style.display = 'block';
-      });
-  }
-
-  document.addEventListener('click', function (e) {
-    if (!e.target.closest('.map-search-bar') && !e.target.closest('.map-search-results')) {
-      searchResults.style.display = 'none';
-    }
-  });
 
 }); // map.on('load')
 </script>
