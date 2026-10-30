@@ -1,3 +1,5 @@
+data_volume_backup.tgz
+*plaques.db*
 cookies.txt
 static/vendor
 static/thumbs
@@ -5,8 +7,7 @@ static/uploads
 thumbs
 uploads
 *un~
-plaques.db*
-plaques.geojson
+set_new_random_plaque.bash
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
