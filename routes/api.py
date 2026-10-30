@@ -6,7 +6,7 @@ from flask import Blueprint, abort, jsonify, request
 
 from database import get_db
 from config import NEARBY_LIMIT
-from models import get_tags_for_plaque, make_or_update_slug, plaque_to_dict, slugify
+from models import get_tags_for_plaque, make_or_update_slug, plaque_to_dict, slugify, path_to_lat_lng_zoom
 
 EARTH_RADIUS_KM = 6371
 
@@ -81,7 +81,7 @@ def search():
 
 
 # ── Nearby ─────────────────────────────────────────────────────────────────────
-def _get_closest_plaques(lat: float, lng: float, limit: int = 10, search_width_deg: float = 0.018, exclude_id: int = -1):
+def _get_closest_plaques(lat: float, lng: float, limit: int = NEARBY_LIMIT, search_width_deg: float = 0.018, exclude_id: int = -1):
     # Pre-calculate target constants
     lat_rad = math.radians(lat)
     lng_rad = math.radians(lng)
@@ -123,7 +123,21 @@ def _get_closest_plaques(lat: float, lng: float, limit: int = 10, search_width_d
             if len(closest_plaques) < limit:
                 search_width_deg *= 3.2
 
-    return closest_plaques
+    results = []
+    for r in closest_plaques:
+        d = plaque_to_dict(r)
+        d["distance_km"] = r["distance_km"]
+        results.append(d)
+
+    return results
+
+
+@api_bp.route("/nearby/<path:coords>")
+def nearby_location(coords):
+    """Return the NEARBY_LIMIT nearest approved plaques, sorted by distance."""
+    lat, lng, _ = path_to_lat_lng_zoom(coords)
+    closest_plaques = _get_closest_plaques(lat, lng)
+    return jsonify(closest_plaques[:NEARBY_LIMIT])
 
 
 @api_bp.route("/nearby/<int:plaque_id>")
@@ -131,22 +145,16 @@ def nearby(plaque_id):
     """Return the NEARBY_LIMIT nearest approved plaques, sorted by distance."""
 
     with get_db() as db:
-        origin = db.execute(
+        plaque = db.execute(
             "SELECT latitude, longitude FROM plaques WHERE id=? AND approved=1",
             (plaque_id,),
         ).fetchone()
-        if not origin:
+        if not plaque:
             abort(404)
-        lat, lng = origin["latitude"], origin["longitude"]
-        sorted_candidates = _get_closest_plaques(lat, lng, NEARBY_LIMIT, exclude_id=plaque_id)
+        lat, lng = plaque["latitude"], plaque["longitude"]
+        closest_plaques = _get_closest_plaques(lat, lng, exclude_id=plaque_id)
 
-    results = []
-    for r in sorted_candidates:
-        d = plaque_to_dict(r)
-        d["distance_km"] = r["distance_km"]
-        results.append(d)
-
-    return jsonify(results[:NEARBY_LIMIT])
+    return jsonify(closest_plaques[:NEARBY_LIMIT])
 
 
 # ── Slug check ───────────────────────────────────────────────────────────────────

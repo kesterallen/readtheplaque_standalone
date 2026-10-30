@@ -38,6 +38,7 @@ from models import (
     plaque_to_dict,
     sanitise_description,
     set_tags_for_plaque,
+    path_to_lat_lng_zoom,
     subdir_path,
     thumb_url,
 )
@@ -111,14 +112,7 @@ def feed():
 def map_view(coords=None):
     lat, lng, zoom = 30.0, -160.0, 2
     if coords:
-        parts = coords.split("/")
-        if len(parts) == 3:
-            try:
-                lat = max(-90.0, min(90.0, float(parts[0])))
-                lng = max(-180.0, min(180.0, float(parts[1])))
-                zoom = max(1, min(19, int(parts[2])))
-            except ValueError:
-                pass
+        lat, lng, zoom = path_to_lat_lng_zoom(coords)
     with get_db() as db:
         total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
     return render_template(

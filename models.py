@@ -279,3 +279,24 @@ def sanitise_description(raw: str) -> str:
         strip=True,
         strip_comments=True,
     )
+
+# ── Coordinate helpers──────────────────────────────────────────────────────────
+def path_to_lat_lng_zoom(coords: str) -> tuple[float]:
+    """
+    Convert e.g. "37.3/-122.3/9.1" -> lat = 37.3, lng = -122.3, zoom = 9.1
+    or "37.3/-122.3" -> lat = 37.3, lng = -122.3, zoom = None
+    """
+    lat, lng, zoom = None, None, None
+    if coords:
+        parts = coords.split("/")
+        try:
+            if len(parts) == 3:
+                lat = max(-90.0, min(90.0, float(parts[0])))
+                lng = max(-180.0, min(180.0, float(parts[1])))
+                zoom = max(1, min(19, int(parts[2])))
+            if len(parts) == 2:
+                lat = max(-90.0, min(90.0, float(parts[0])))
+                lng = max(-180.0, min(180.0, float(parts[1])))
+        except ValueError:
+            pass
+    return lat, lng, zoom

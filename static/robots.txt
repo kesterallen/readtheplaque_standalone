@@ -6,3 +6,4 @@ Disallow: /search
 Disallow: /submit
 Disallow: /submitter
 Disallow: /tag
+Disallow: /nearby
