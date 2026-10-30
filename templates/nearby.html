@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "macros/plaque_map.html" import plaque_map %}
+{% block title %}Plaques near you — Read The Plaque{% endblock %}
+
+{% block content %}
+<section class="index-hero">
+  <div class="search-results-hero-info">
+    <h1 class="search-results-title">
+      {% if plaques %}
+        The {{ plaques|length }} plaque{{ 's' if plaques|length != 1 }} nearest
+        <em>{{ "%.3f"|format(lat) }}, {{ "%.3f"|format(lng) }}</em>
+      {% else %}
+        No plaques yet
+      {% endif %}
+    </h1>
+    {% if plaques %}
+    <p class="search-results-sub">
+      Closest is {{ plaques[0].distance_km }} km away; the furthest shown is
+      {{ plaques[-1].distance_km }} km.
+    </p>
+    <p class="search-results-sub">
+      <a href="/map/{{ '%.4f'|format(lat) }}/{{ '%.4f'|format(lng) }}/9">View the area on the big map →</a>
+    </p>
+    {% endif %}
+  </div>
+
+  {% if plaques %}
+  <div class="index-map-panel">
+    <div class="index-map-header">Map of these {{ plaques|length }} plaques</div>
+    {{ plaque_map("nearby-map", plaques, height="100%") }}
+  </div>
+  {% else %}
+  <div class="index-map-panel search-no-results">
+    <p>There are no approved plaques to show.</p>
+  </div>
+  {% endif %}
+</section>
+
+{% if plaques %}
+<section class="recent-section">
+  <div class="recent-header">
+    <h2>Nearest first</h2>
+  </div>
+  <div class="plaque-grid">
+    {% for p in plaques %}
+    <a href="/plaque/{{ p.slug }}" class="plaque-card">
+      <div class="card-img-wrap">
+        <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
+      </div>
+      <p class="card-title">{{ p.title }}</p>
+      <p class="card-location">{{ p.distance_km }} km · {{ p.distance_mi }} mi</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

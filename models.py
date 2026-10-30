@@ -281,7 +281,7 @@ def sanitise_description(raw: str) -> str:
     )
 
 # ── Coordinate helpers──────────────────────────────────────────────────────────
-def path_to_lat_lng_zoom(coords: str) -> tuple[float]:
+def path_to_lat_lng_zoom(coords: str, default_lat=0, default_lng=0, default_zoom=1) -> tuple[float]:
     """
     Convert e.g. "37.3/-122.3/9.1" -> lat = 37.3, lng = -122.3, zoom = 9.1
     or "37.3/-122.3" -> lat = 37.3, lng = -122.3, zoom = None
@@ -299,4 +299,12 @@ def path_to_lat_lng_zoom(coords: str) -> tuple[float]:
                 lng = max(-180.0, min(180.0, float(parts[1])))
         except ValueError:
             pass
+
+    if lat is None:
+        lat = default_lat
+    if lng is None:
+        lng = default_lng
+    if zoom is None:
+        zoom = default_zoom
+
     return lat, lng, zoom

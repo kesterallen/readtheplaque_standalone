@@ -16,6 +16,7 @@ from flask import (
 )
 
 from config import ALLOWED_EXT, HCAPTCHA_SITEKEY, PER_PAGE, THUMB_DIR, UPLOAD_DIR
+from routes.api import _get_closest_plaques
 from spam import (
     check_content,
     check_honeypot,
@@ -112,7 +113,7 @@ def feed():
 def map_view(coords=None):
     lat, lng, zoom = 30.0, -160.0, 2
     if coords:
-        lat, lng, zoom = path_to_lat_lng_zoom(coords)
+        lat, lng, zoom = path_to_lat_lng_zoom(coords, lat, lng, zoom)
     with get_db() as db:
         total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
     return render_template(
@@ -381,6 +382,28 @@ def search_page(page=1):
         page=page,
         total_pages=total_pages,
     )
+
+
+# ── Nearby-me gallery ─────────────────────────────────────────────────────────
+@public_bp.route("/nearby/<lat>/<lng>")
+def nearby_gallery(lat, lng):
+    """The PER_PAGE approved plaques nearest to (lat, lng), closest first."""
+    # Validated strictly (404, not clamped) because every lat/lng pair is a URL.
+    # Not <float:...>, which rejects negatives and whole numbers.
+    try:
+        lat_f, lng_f = float(lat), float(lng)
+    except ValueError:
+        abort(404)
+    # Written as `not (in range)` so NaN, which compares False, is rejected too.
+    if not (-90 <= lat_f <= 90 and -180 <= lng_f <= 180):
+        abort(404)
+
+    plaques = _get_closest_plaques(lat_f, lng_f, limit=PER_PAGE)
+    for p in plaques:
+        km = p.get("distance_km") or 0.0  # SQLite acos() is NULL on an exact match
+        p["distance_km"] = round(km, 1)
+        p["distance_mi"] = round(km / 1.609344, 1)
+    return render_template("nearby.html", lat=lat_f, lng=lng_f, plaques=plaques)
 
 
 # ── Tag page ──────────────────────────────────────────────────────────────────

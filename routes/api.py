@@ -90,11 +90,11 @@ def _get_closest_plaques(lat: float, lng: float, limit: int = NEARBY_LIMIT, sear
 
     # Start with a small search window and expand if expand if not enough found
     with get_db() as db:
-        while len(closest_plaques) < limit and search_width_deg < 180:
-            lat_min = lat - search_width_deg
-            lat_max = lat + search_width_deg
-            lng_min = lng - search_width_deg
-            lng_max = lng + search_width_deg
+        while len(closest_plaques) < limit:
+            lat_min = max(lat - search_width_deg, -90.0)
+            lat_max = min(lat + search_width_deg, 90.0)
+            lng_min = max(lng - search_width_deg, -180.0)
+            lng_max = min(lng + search_width_deg, 180.0)
 
             # Law of Cosines sort inside the indexed bounding box
             query = f"""
@@ -104,7 +104,8 @@ def _get_closest_plaques(lat: float, lng: float, limit: int = NEARBY_LIMIT, sear
                            cos(?) * cos(radians(latitude)) * cos(radians(longitude) - ?)
                        )) AS distance_km
                 FROM plaques
-                WHERE latitude BETWEEN ? AND ?
+                WHERE approved = 1
+                  AND latitude BETWEEN ? AND ?
                   AND longitude BETWEEN ? AND ?
                   AND id != ?
                 ORDER BY distance_km ASC
@@ -119,9 +120,13 @@ def _get_closest_plaques(lat: float, lng: float, limit: int = NEARBY_LIMIT, sear
                 limit
             )).fetchall()
 
-            # If not enough plaques were found, 10x the search area (~3.2x width) 
+            # If not enough plaques were found, 10x the search area (~3.2x width).
+            # The last pass is capped at 360° so it covers the whole globe from any
+            # starting longitude; if even that finds fewer than `limit`, stop.
             if len(closest_plaques) < limit:
-                search_width_deg *= 3.2
+                if search_width_deg >= 360:
+                    break
+                search_width_deg = min(search_width_deg * 3.2, 360.0)
 
     results = []
     for r in closest_plaques:
