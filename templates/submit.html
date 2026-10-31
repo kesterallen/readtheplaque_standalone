@@ -281,6 +281,27 @@ document.getElementById('geolocateBtn').addEventListener('click', e => {
   );
 });
 
+// ── hCaptcha ──────────────────────────────────────────────────────────────────
+// This page has no <form>, so the widget can't attach its token to the request on
+// its own: read it here and send it explicitly. Returns an error message, or null
+// when OK (including when the widget isn't on the page, i.e. captcha is off).
+function attachCaptcha(fd) {
+  if (!document.querySelector('.h-captcha')) return null;
+  if (!window.hcaptcha) {
+    return 'The CAPTCHA failed to load. Please reload the page and try again.';
+  }
+  const token = window.hcaptcha.getResponse();
+  if (!token) return 'Please complete the CAPTCHA.';
+  fd.append('h-captcha-response', token);
+  return null;
+}
+
+// A token can be verified only once, so the widget must be reset after every
+// attempt or the next submission would be rejected as already used.
+function resetCaptcha() {
+  if (document.querySelector('.h-captcha') && window.hcaptcha) window.hcaptcha.reset();
+}
+
 // ── Submit ────────────────────────────────────────────────────────────────────
 document.getElementById('submitBtn').addEventListener('click', async () => {
   const btn      = document.getElementById('submitBtn');
@@ -296,6 +317,9 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   fd.append('tags', document.getElementById('tags').value.trim());
   fd.append('latitude',     document.getElementById('latitude').value.trim());
   fd.append('longitude',    document.getElementById('longitude').value.trim());
+
+  const captchaError = attachCaptcha(fd);
+  if (captchaError) { showErrors([captchaError]); return; }
 
   btn.disabled    = true;
   btn.textContent = 'Submitting…';
@@ -326,6 +350,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   } catch (e) {
     showErrors(['Network error — please try again.']);
   } finally {
+    resetCaptcha();
     btn.disabled    = false;
     btn.textContent = 'Submit A Plaque';
   }

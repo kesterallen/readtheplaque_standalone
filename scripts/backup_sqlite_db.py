@@ -1,5 +1,5 @@
 
-import sqlite3
+from sqlite3 import connect
 import sys
 
 if len(sys.argv) != 3:
@@ -9,6 +9,5 @@ if len(sys.argv) != 3:
 src_file = sys.argv[1]
 dst_file = sys.argv[2]
 
-with sqlite3.connect(src_file) as src:
-    with sqlite3.connect(dst_file) as dst:
-        src.backup(dst)
+with connect(src_file) as src, connect(dst_file) as dst:
+    src.backup(dst)

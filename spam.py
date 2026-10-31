@@ -8,6 +8,7 @@ Layers:
   4. Content     — block obvious URL spam in title / description
 """
 
+import logging
 import time
 import re
 import urllib.request
@@ -25,12 +26,32 @@ from config import (
     RATE_LIMIT_WINDOW,
 )
 
+log = logging.getLogger(__name__)
+
 # ── hCaptcha ───────────────────────────────────────────────────────────────────
 
 
 def captcha_enabled() -> bool:
-    """Return True when a real hCaptcha secret is configured."""
-    return bool(HCAPTCHA_SECRET)
+    """True only when BOTH hCaptcha keys are configured.
+
+    The site key makes the widget appear; the secret makes the server enforce it.
+    Enforcing without a widget would reject every submission with nothing for the
+    visitor to solve, so a half-configured captcha stays off (and is logged).
+    """
+    return bool(HCAPTCHA_SECRET and HCAPTCHA_SITEKEY)
+
+
+def _warn_if_half_configured() -> None:
+    if bool(HCAPTCHA_SECRET) != bool(HCAPTCHA_SITEKEY):
+        missing = "HCAPTCHA_SITEKEY" if HCAPTCHA_SECRET else "HCAPTCHA_SECRET"
+        log.warning(
+            "hCaptcha is only half-configured (%s is not set): the captcha is OFF. "
+            "Set both HCAPTCHA_SITEKEY and HCAPTCHA_SECRET to enable it.",
+            missing,
+        )
+
+
+_warn_if_half_configured()
 
 
 def verify_captcha(token: str) -> tuple[bool, str]:
@@ -42,7 +63,10 @@ def verify_captcha(token: str) -> tuple[bool, str]:
     if not captcha_enabled():
         return True, ""
     if not token:
-        return False, "Please complete the CAPTCHA."
+        # The page itself says "Please complete the CAPTCHA." when the widget is
+        # unsolved; reaching here means the response never arrived at all (e.g. a
+        # stale cached page from before a deploy), so ask for a reload instead.
+        return False, "The CAPTCHA response didn't reach the server. Please reload the page and try again."
     try:
         payload = urllib.parse.urlencode(
             {"secret": HCAPTCHA_SECRET, "response": token}
@@ -58,8 +82,10 @@ def verify_captcha(token: str) -> tuple[bool, str]:
             return True, ""
         codes = result.get("error-codes", [])
         return False, f"CAPTCHA failed ({', '.join(codes)}). Please try again."
-    except Exception:
-        # Network hiccup — fail open rather than block real users
+    except Exception as exc:
+        # Network hiccup — fail open rather than block real users. But say so:
+        # otherwise a broken verifier silently turns the captcha off.
+        log.warning("hCaptcha verification unavailable; allowing submission: %r", exc)
         return True, ""
 
 
