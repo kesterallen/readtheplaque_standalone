@@ -16,7 +16,7 @@
       <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
-      <a href="/map" class="nav-link">Big Map</a>
+      <a href="/map" class="nav-link" id="mapLink">Big Map</a>
       <a href="/map" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <a href="/random" class="nav-link">Random</a>
       <a href="/about" class="nav-link">About</a>
@@ -27,7 +27,7 @@
 </header>
 
 <div class="mobile-nav" id="mobileNav">
-  <a href="/map" class="mobile-nav-link">Big Map</a>
+  <a href="/map" class="mobile-nav-link" id="mapLinkMobile">Big Map</a>
   <a href="/map" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <a href="/random" class="mobile-nav-link">Random</a>
   <a href="/about" class="mobile-nav-link">About</a>
@@ -73,7 +73,9 @@
   window.addEventListener('DOMContentLoaded', () => {
     const linkIds = [
       'nearbyMeLink',
-      'nearbyMeLinkMobile'
+      'nearbyMeLinkMobile',
+      'mapLink',
+      'mapLinkMobile'
     ];
 
     navigator.geolocation.getCurrentPosition(
@@ -84,14 +86,14 @@
         for (const linkId of linkIds) {
           const link = document.getElementById(linkId);
           if (link) {
-            link.href = `/nearby/${lat}/${lng}`;
+            link.href += `/${lat}/${lng}/3`;
           }
         }
       },
       () => {
         for (const linkId of linkIds) {
           const link = document.getElementById(linkId);
-          if (link) {
+          if (link && link.id.includes("nearby")) { // Hide the Nearby link but not the Map link
             link.style.display = 'none';
           }
         }
