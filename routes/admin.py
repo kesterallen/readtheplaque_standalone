@@ -355,18 +355,6 @@ def feature(plaque_id):
         id = row["id"]
         return _feature(id)
 
-@admin_bp.route("/feature_random", methods=["POST"])
-def feature_random():
-    if not is_admin():
-        return redirect(url_for("admin.login"))
-
-    with get_db() as db:
-        rows = db.execute("SELECT id FROM plaques WHERE approved=1").fetchall()
-        if not rows:
-            abort(404)
-        id = random.choice(rows)["id"]
-        return _feature(id)
-
 
 # ── Image management ───────────────────────────────────────────────────────────
 @admin_bp.route("/images/<int:plaque_id>/add", methods=["POST"])
