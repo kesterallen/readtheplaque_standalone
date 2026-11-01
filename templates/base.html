@@ -17,7 +17,7 @@
     </a>
     <nav class="nav">
       <a href="/map" class="nav-link" id="mapLink">Big Map</a>
-      <a href="/map" class="nav-link" id="nearbyMeLink">Nearby Me</a>
+      <a href="/nearby" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <a href="/random" class="nav-link">Random</a>
       <a href="/about" class="nav-link">About</a>
       <a href="/submit" class="nav-link nav-link--submit">Submit A Plaque</a>
@@ -28,7 +28,7 @@
 
 <div class="mobile-nav" id="mobileNav">
   <a href="/map" class="mobile-nav-link" id="mapLinkMobile">Big Map</a>
-  <a href="/map" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
+  <a href="/nearby" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <a href="/random" class="mobile-nav-link">Random</a>
   <a href="/about" class="mobile-nav-link">About</a>
   <a href="/submit" class="mobile-nav-link">Submit A Plaque</a>
@@ -86,7 +86,10 @@
         for (const linkId of linkIds) {
           const link = document.getElementById(linkId);
           if (link) {
-            link.href += `/${lat}/${lng}/3`;
+            link.href += `/${lat}/${lng}`;
+            if (link.id.includes("mapLink")) { // Add a zoom argument to the Map but not the Nearby link
+              link.href += `/4`;
+            } 
           }
         }
       },
