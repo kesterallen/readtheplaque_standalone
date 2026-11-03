@@ -84,8 +84,30 @@ def bad_exemplars(rtp_data):
     return match_indices
 
 
+def admin_session(base_url):
+    """A requests.Session logged in as admin.
+
+    /submit only honors created_at/updated_at from an admin, so the importer must
+    log in or every imported plaque would be dated "now".
+    """
+    password = os.environ.get("ADMIN_PASSWORD")
+    if not password:
+        sys.exit(
+            "ADMIN_PASSWORD must be set: the importer logs in as admin so that each "
+            "plaque keeps its original created_at/updated_at."
+        )
+    session = requests.Session()
+    response = session.post(
+        f"{base_url}/admin/login", data={"password": password}, allow_redirects=False
+    )
+    if response.status_code != 302:  # success redirects; a bad password re-shows the form
+        sys.exit(f"Admin login to {base_url} failed (HTTP {response.status_code}): wrong ADMIN_PASSWORD?")
+    return session
+
+
 def main(mode, target):
     base_url = target
+    session = admin_session(base_url)
 
     rtp_geojson_filename = "./plaques.geojson"
     with open(rtp_geojson_filename) as geojson_file:
@@ -233,7 +255,7 @@ def main(mode, target):
             with open(img_filename, "rb") as img_file:
                 files = {"images": (img_filename, img_file)}
                 print("posting to ", url)
-                response = requests.post(url, data=data, files=files)
+                response = session.post(url, data=data, files=files)
                 if "disallowed" in response.text:
                     print(response.text)
             os.remove(img_filename)

@@ -21,7 +21,8 @@ THUMB_DIR = os.path.join(_DATA_DIR, "thumbs")
 # ── Image settings ─────────────────────────────────────────────────────────────
 THUMB_SIZE = (400, 300)
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
-MAX_MB = 16
+MAX_FILE_MB = 16     # largest single photo
+MAX_UPLOAD_MB = 100  # one whole submission (all its photos together)
 
 # ── App behaviour ──────────────────────────────────────────────────────────────
 NEARBY_LIMIT = 10

@@ -41,7 +41,7 @@
     <div class="drop-zone" id="dropZone">
       <input type="file" id="imageFile" name="images" accept="image/*" multiple>
       <div class="dz-icon">🏛️</div>
-      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · max 16 MB · first image is primary</small></div>
+      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · up to {{ max_file_mb }} MB per photo, {{ max_upload_mb }} MB in total · first image is primary</small></div>
     </div>
     <div id="imgPreviewWrap" class="img-preview-wrap"></div>
     <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
@@ -281,6 +281,28 @@ document.getElementById('geolocateBtn').addEventListener('click', e => {
   );
 });
 
+// ── Upload size ───────────────────────────────────────────────────────────────
+// Checked here, before uploading, because a server that rejects a huge request
+// can drop the connection before its explanation reaches the browser.
+const MAX_FILE_MB   = {{ max_file_mb }};
+const MAX_UPLOAD_MB = {{ max_upload_mb }};
+function checkUploadSize(files) {
+  const MB = 1024 * 1024;
+  const mb = n => (n / MB).toFixed(1);
+  const safe = s => String(s).replace(/[&<>"']/g, c => '&#' + c.charCodeAt(0) + ';');
+  for (const f of files) {
+    if (f.size > MAX_FILE_MB * MB) {
+      return `“${safe(f.name)}” is ${mb(f.size)} MB. Each photo can be up to ${MAX_FILE_MB} MB.`;
+    }
+  }
+  const total = files.reduce((sum, f) => sum + f.size, 0);
+  if (total > MAX_UPLOAD_MB * MB) {
+    return `These photos add up to ${mb(total)} MB. A submission can be up to ` +
+           `${MAX_UPLOAD_MB} MB in total, so please choose fewer or smaller photos.`;
+  }
+  return null;
+}
+
 // ── hCaptcha ──────────────────────────────────────────────────────────────────
 // This page has no <form>, so the widget can't attach its token to the request on
 // its own: read it here and send it explicitly. Returns an error message, or null
@@ -308,6 +330,9 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   const alertBox = document.getElementById('alertBox');
   const announceBox = document.getElementById('announceBox');
   alertBox.style.display = 'none';
+
+  const sizeError = checkUploadSize(Array.from(fileInput.files));
+  if (sizeError) { showErrors([sizeError]); return; }
 
   const fd = new FormData();
   Array.from(fileInput.files).forEach(f => fd.append('images', f));

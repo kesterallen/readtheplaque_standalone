@@ -8,21 +8,34 @@ and DB setup in database.py.
 
 import os
 
-from flask import Flask
+from flask import Flask, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
-from config import CARTO_API_KEY, MAX_MB, SECRET_KEY, UPLOAD_DIR
+from config import CARTO_API_KEY, MAX_FILE_MB, MAX_UPLOAD_MB, SECRET_KEY, UPLOAD_DIR
 from database import init_db
 from routes import register_blueprints
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
-app.config["MAX_CONTENT_LENGTH"] = MAX_MB * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 app.json.compact = True
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 register_blueprints(app)
+
+@app.errorhandler(RequestEntityTooLarge)
+def upload_too_large(_error):
+    """Answer an oversized upload in a form the page can show (not Flask's HTML)."""
+    message = (
+        f"That upload is too large. A submission can be up to {MAX_UPLOAD_MB} MB in "
+        f"total ({MAX_FILE_MB} MB per photo): please choose fewer or smaller photos."
+    )
+    if request.path == "/submit" or request.path.startswith("/admin/images/"):
+        return jsonify({"ok": False, "errors": [message], "error": message}), 413
+    return message, 413
+
 
 @app.context_processor
 def inject_globals():

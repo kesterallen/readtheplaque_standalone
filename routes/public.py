@@ -3,6 +3,7 @@
 import random
 import re
 
+from markupsafe import escape
 from flask import (
     Blueprint,
     abort,
@@ -15,7 +16,15 @@ from flask import (
     url_for,
 )
 
-from config import ALLOWED_EXT, HCAPTCHA_SITEKEY, PER_PAGE, THUMB_DIR, UPLOAD_DIR
+from config import (
+    ALLOWED_EXT,
+    HCAPTCHA_SITEKEY,
+    MAX_FILE_MB,
+    MAX_UPLOAD_MB,
+    PER_PAGE,
+    THUMB_DIR,
+    UPLOAD_DIR,
+)
 from routes.api import _get_closest_plaques
 from spam import (
     check_content,
@@ -129,6 +138,8 @@ def submit():
             "submit.html",
             hcaptcha_sitekey=HCAPTCHA_SITEKEY,
             honeypot_field=HONEYPOT_FIELD,
+            max_file_mb=MAX_FILE_MB,
+            max_upload_mb=MAX_UPLOAD_MB,
         )
 
     # ── Spam checks ────────────────────────────────────────────────────────────
@@ -183,13 +194,18 @@ def submit():
     errors.extend(img_errors)
 
     if not saved_images:
-        return jsonify({"ok": False, "errors": [f"No images could be saved. {errors}"]}), 400
+        return jsonify({"ok": False, "errors": errors or ["No images could be saved."]}), 400
     if errors:
         return jsonify({"ok": False, "errors": errors}), 400
 
-    # If created_at or updated_at exist in the form, use them and submit them
-    created_at = request.form.get("created_at", None)
-    updated_at = request.form.get("updated_at", None)
+    # created_at / updated_at let the admin-run importer keep a plaque's original
+    # dates. Anonymous visitors must not set them: a future date would pin their
+    # plaque to the top of "most recent" forever, and a past one would hide it.
+    if session.get("admin") is True:
+        created_at = request.form.get("created_at", None)
+        updated_at = request.form.get("updated_at", None)
+    else:
+        created_at = updated_at = None
 
     plaque_id, slug = _insert_plaque_rows(
         title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
@@ -214,6 +230,14 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
         ext = f.filename.rsplit(".", 1)[-1].lower()
         if ext not in ALLOWED_EXT:
             errors.append(f"'{f.filename}': allowed types are {', '.join(ALLOWED_EXT)}")
+        f.stream.seek(0, os.SEEK_END)
+        size = f.stream.tell()
+        f.stream.seek(0)
+        if size > MAX_FILE_MB * 1024 * 1024:
+            errors.append(
+                f"'{escape(f.filename)}' is {size / 1048576:.1f} MB; "
+                f"the limit is {MAX_FILE_MB} MB per photo."
+            )
 
     if errors:
         return saved_images, errors
