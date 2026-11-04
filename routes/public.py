@@ -520,7 +520,7 @@ def counts():
     with get_db() as db:
         pending = db.execute("SELECT count(*) FROM plaques WHERE approved = 0").fetchone()[0]
         approved = db.execute("SELECT count(*) FROM plaques WHERE approved != 0").fetchone()[0]
-    return f"Pending: {pending}; Approved: {approved}; Total {pending + approved}"
+    return f"Pending: {pending}; Approved: {approved}; Total: {pending + approved}"
 
 
 # ── File serving ──────────────────────────────────────────────────────────────
