@@ -89,7 +89,7 @@
             link.href += `/${lat}/${lng}`;
             if (link.id.includes("mapLink")) { // Add a zoom argument to the Map but not the Nearby link
               link.href += `/4`;
-            } 
+            }
           }
         }
       },
@@ -165,12 +165,27 @@ document.addEventListener("DOMContentLoaded", function() {
       m.addSource(srcId, { type: "geojson", data: geojson, generateId: true });
 
       if (features.length) {
-        var lngs = features.map(function(f) { return f.geometry.coordinates[0]; });
-        var lats = features.map(function(f) { return f.geometry.coordinates[1]; });
+        var lngs = features.map(f => f.geometry.coordinates[0]).sort((a, b) => a - b);
+        var lats = features.map(f => f.geometry.coordinates[1]).sort((a, b) => a - b);
+
+        var low = Math.floor(features.length * 0.05);
+        var high = Math.ceil(features.length * 0.95) - 1;
+
+        // Keep bounds within valid array indices.
+        high = Math.max(low, Math.min(high, features.length - 1));
+
+        var minLng = lngs[low];
+        var maxLng = lngs[high];
+        var minLat = lats[low];
+        var maxLat = lats[high];
+
         m.fitBounds(
-          [[Math.min.apply(null,lngs), Math.min.apply(null,lats)],
-           [Math.max.apply(null,lngs), Math.max.apply(null,lats)]],
-          { padding: 40, maxZoom: 14, duration: 0 }
+          [[minLng, minLat], [maxLng, maxLat]],
+          {
+            padding: 50,
+            maxZoom: 14,
+            duration: 0
+          }
         );
       }
 
