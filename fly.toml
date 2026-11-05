@@ -19,9 +19,9 @@ primary_region = "iad"
   cpus = 1
 
 [[mounts]]
-  source = "readtheplaque_volume"
+  source = "readtheplaque_data_16"
   destination = "/data"
-  initial_size = "30gb"
+  initial_size = "16gb"
 
 [[statics]]
   guest_path = "/app/public"

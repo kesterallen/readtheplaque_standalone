@@ -3,7 +3,7 @@
 import random
 import re
 
-from markupsafe import escape
+from markupsafe import Markup, escape
 from flask import (
     Blueprint,
     abort,
@@ -22,6 +22,8 @@ from config import (
     MAX_FILE_MB,
     MAX_UPLOAD_MB,
     PER_PAGE,
+    SHARE_IMAGE_MAX_MB,
+    SITE_URL,
     THUMB_DIR,
     UPLOAD_DIR,
 )
@@ -229,7 +231,7 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
     for f in image_files:
         ext = f.filename.rsplit(".", 1)[-1].lower()
         if ext not in ALLOWED_EXT:
-            errors.append(f"'{f.filename}': allowed types are {', '.join(ALLOWED_EXT)}")
+            errors.append(f"'{escape(f.filename)}': allowed types are {', '.join(ALLOWED_EXT)}")
         f.stream.seek(0, os.SEEK_END)
         size = f.stream.tell()
         f.stream.seek(0)
@@ -256,7 +258,11 @@ def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
                 "WHERE pi.image_hash=?", (image_hash,),
             ).fetchone()
             if duplicate_plaque:
-                errors.append(f"""Image {image_file.filename} is a duplicate of <a href="/plaque/{duplicate_plaque['slug']}">{duplicate_plaque['title']}</a>.""")
+                errors.append(
+                    f"Image {escape(image_file.filename)} is a duplicate of "
+                    f'<a href="/plaque/{escape(duplicate_plaque["slug"])}">'
+                    f'{escape(duplicate_plaque["title"])}</a>.'
+                )
                 continue
         
         filename = new_image_filename(ext)
@@ -342,6 +348,44 @@ def _insert_plaque_rows(
 
 
 # ── Plaque detail ─────────────────────────────────────────────────────────────
+# ── Link previews ─────────────────────────────────────────────────────────────
+def _site_root() -> str:
+    """Absolute address of this site; share tags need full URLs, not paths.
+
+    $SITE_URL if set, else the address this request came in on, using https when
+    Fly's proxy reports the visitor did (Flask itself only ever sees plain http).
+    """
+    if SITE_URL:
+        return SITE_URL
+    scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",")[0].strip()
+    if scheme not in ("http", "https"):
+        scheme = request.scheme
+    return f"{scheme}://{request.host}"
+
+
+def _share_description(raw: str | None, limit: int = 200) -> str:
+    """Plain-text summary of a plaque's text for a preview card."""
+    text = Markup(raw or "").striptags()  # drops tags, decodes &amp; etc.
+    if len(text) > limit:
+        text = text[:limit].rsplit(" ", 1)[0].rstrip(" ,.;:-–—") + "…"
+    return text or "A plaque on Read The Plaque, a map of the world's historical plaques."
+
+
+def _share_image(plaque: dict) -> tuple[str, str]:
+    """Pick the preview image. Returns (absolute URL, X card type).
+
+    The full photo gives a big preview card, but only if Facebook and X will
+    fetch it (see SHARE_IMAGE_MAX_MB); otherwise use the thumbnail.
+    """
+    try:
+        size = os.path.getsize(subdir_path(UPLOAD_DIR, plaque["image_file"]))
+    except OSError:
+        size = None
+    if size is not None and size <= SHARE_IMAGE_MAX_MB * 1024 * 1024:
+        return _site_root() + plaque["image_url"], "summary_large_image"
+    return _site_root() + plaque["thumb_url"], "summary"
+
+
 @public_bp.route("/plaque/<slug>")
 def plaque_detail(slug):
     with get_db() as db:
@@ -367,7 +411,16 @@ def plaque_detail(slug):
     plaque["description_html"] = (
         sanitise_description(plaque["description"]) if plaque.get("description") else ""
     )
-    return render_template("detail.html", plaque=plaque, is_admin=session.get("admin", False))
+    image, card = _share_image(plaque)
+    share = {
+        "url": _site_root() + url_for("public.plaque_detail", slug=plaque["slug"]),
+        "description": _share_description(plaque.get("description")),
+        "image": image,
+        "card": card,
+    }
+    return render_template(
+        "detail.html", plaque=plaque, share=share, is_admin=session.get("admin", False)
+    )
 
 
 # ── Search results page ───────────────────────────────────────────────────────

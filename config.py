@@ -63,6 +63,15 @@ ALLOWED_ATTRS: dict[str, list[str]] = {
 # ── Map tiles ─────────────────────────────────────────────────────────────────
 CARTO_API_KEY = os.environ.get("CARTO_API_KEY", "")
 
+# ── Link previews (Open Graph / X cards) ──────────────────────────────────────
+# Share tags need absolute URLs. Set SITE_URL (e.g. "https://readtheplaque.com") to
+# pin them to one address; if unset, the address each page was requested at is used.
+SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+# The full photo is used as the preview image only up to this size, because
+# Facebook (8 MB) and X (5 MB) refuse to fetch bigger images; the 400px thumbnail
+# is used beyond it.
+SHARE_IMAGE_MAX_MB = 4
+
 # ── Spam / hCaptcha ────────────────────────────────────────────────────────────
 # Register free at https://dashboard.hcaptcha.com
 # Set HCAPTCHA_SECRET and HCAPTCHA_SITEKEY in your environment.

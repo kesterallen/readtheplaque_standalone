@@ -1,7 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ plaque.title }} — Read The Plaque{% endblock %}
 
-{% block extra_head %}{% endblock %}
+{% block extra_head %}
+{# Link previews (Facebook, Slack, iMessage, WhatsApp, X, …). Values are escaped by Jinja. #}
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Read The Plaque">
+<meta property="og:title" content="{{ plaque.title }}">
+<meta property="og:description" content="{{ share.description }}">
+<meta property="og:url" content="{{ share.url }}">
+<meta property="og:image" content="{{ share.image }}">
+<meta property="og:image:alt" content="{{ plaque.title }}">
+<meta name="twitter:card" content="{{ share.card }}">
+{% endblock %}
 
 {% block content %}
 <div class="detail-page">
