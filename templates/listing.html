@@ -5,7 +5,7 @@
 {% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-{% if mode in ["tag", "submitter"] %}<div class="tag-page">{% endif %}
+{% if mode in ["tag", "submitter"] %}<div class="tag-page" style="max-width: 100%; padding-left: 0; padding-right: 0;">{% endif %}
 <section class="index-hero">
   <div class="search-results-hero-info">
     {% if mode == "search" %}
