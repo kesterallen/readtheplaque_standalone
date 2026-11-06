@@ -10,6 +10,7 @@ from PIL import Image
 import database
 import models
 from routes import public
+from routes import submissions
 
 
 class SubmissionTests(unittest.TestCase):
@@ -20,17 +21,17 @@ class SubmissionTests(unittest.TestCase):
         self.upload_dir = str(root / "uploads")
         self.thumb_dir = str(root / "thumbs")
 
-        self.patches = [
+        patches = [
             patch.object(database, "DB_PATH", self.db_path),
-            patch.object(public, "UPLOAD_DIR", self.upload_dir),
+            patch.object(submissions, "UPLOAD_DIR", self.upload_dir),
             patch.object(models, "UPLOAD_DIR", self.upload_dir),
             patch.object(models, "THUMB_DIR", self.thumb_dir),
-            patch.object(public, "check_honeypot", return_value=False),
-            patch.object(public, "check_rate_limit", return_value=(True, None)),
-            patch.object(public, "verify_captcha", return_value=(True, None)),
-            patch.object(public, "check_content", return_value=(True, None)),
+            patch.object(submissions, "check_honeypot", return_value=False),
+            patch.object(submissions, "check_rate_limit", return_value=(True, None)),
+            patch.object(submissions, "verify_captcha", return_value=(True, None)),
+            patch.object(submissions, "check_content", return_value=(True, None)),
         ]
-        for active_patch in self.patches:
+        for active_patch in patches:
             active_patch.start()
             self.addCleanup(active_patch.stop)
 
@@ -87,7 +88,8 @@ class SubmissionTests(unittest.TestCase):
         self.assertIsNotNone(plaque)
         self.assertEqual(plaque["slug"], "test-memorial")
         self.assertEqual(plaque["approved"], 0)
-        self.assertTrue(Path(self.upload_dir, plaque["image_file"][:2], plaque["image_file"]).is_file())
+        stored_image = Path(self.upload_dir, plaque["image_file"][:2], plaque["image_file"])
+        self.assertTrue(stored_image.is_file())
         self.assertEqual(image["plaque_id"], plaque["id"])
         self.assertEqual(image["is_primary"], 1)
         self.assertEqual([tag["name"] for tag in tags], ["history", "memorial"])
@@ -107,7 +109,9 @@ class SubmissionTests(unittest.TestCase):
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 400)
-        self.assertTrue(any("duplicate" in error.lower() for error in second.get_json()["errors"]))
+        self.assertTrue(
+            any("duplicate" in error.lower() for error in second.get_json()["errors"])
+        )
         with database.get_db() as db:
             count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
         self.assertEqual(count, 1)

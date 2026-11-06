@@ -36,20 +36,20 @@ Read The Plaque is a Flask-based crowdsourced map of historical plaques and memo
 ## Quick start
 
 ```bash
-# 1. Create a virtualenv if you want one
+# Create and activate a virtual environment (optional)
 python -m venv .venv
 source .venv/bin/activate
 
-# 2. Install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
-# 3. Run the app
+# Run the app
 python app.py
 ```
 
 Then open http://localhost:5000.
 
-The app creates its database and upload directories automatically on first run. By default it stores data under `/data` when that directory exists, otherwise in the project root.
+The app creates its database and upload directories automatically on first run. By default, data is stored under `/data` when that directory exists; otherwise it is stored in the project directory.
 
 ## Configuration
 
@@ -68,35 +68,23 @@ Core settings live in `config.py` and can be overridden with environment variabl
 .
 ├── app.py                  # Flask app entry point
 ├── config.py               # app configuration and constants
-├── database.py             # SQLite connection + schema initialization
+├── database.py             # SQLite connection and schema initialization
 ├── models.py               # image, tag, slug, and sanitization helpers
 ├── requirements.txt
 ├── routes/
-│   ├── __init__.py
+│   ├── __init__.py         # blueprint registration
 │   ├── admin.py            # admin login, moderation, image management
-│   ├── api.py              # JSON endpoints for GeoJSON/search/nearby
-│   └── public.py           # public pages and submission handling
-├── scripts/
-│   ├── approve_all.py
-│   ├── backup_sqlite_db.py
-│   ├── copy_from_rtp.py
-│   ├── file_upload.py
-│   ├── fix_thumb_rotation.py
-│   └── seed_db.py
-├── static/
-│   ├── css/
-│   ├── images/
-│   └── audio/
-├── templates/
-│   ├── admin_*.html
-│   ├── base.html
-│   ├── detail.html
-│   ├── index.html
-│   ├── map.html
-│   └── submit.html
-├── README.md
-└── tests/
-    └── test_models.py
+│   ├── api.py              # JSON endpoints for GeoJSON, search, and nearby
+│   ├── public.py           # public pages, plaque details, and browsing
+│   └── submissions.py      # submission validation and image persistence
+├── scripts/                # maintenance, backup, and import tools
+├── static/                 # CSS, images, and audio assets
+├── templates/              # Jinja2 page and email/feed templates
+├── tests/
+│   ├── test_database.py
+│   ├── test_models.py
+│   └── test_submissions.py
+└── README.md
 ```
 
 ## API endpoints
@@ -124,7 +112,7 @@ Core settings live in `config.py` and can be overridden with environment variabl
 
 ## Local testing
 
-Minimal baseline coverage is included using the standard library `unittest` runner:
+The project includes a minimal regression test suite using Python's standard-library `unittest` runner:
 
 ```bash
 python -m unittest discover -s tests -v
@@ -132,7 +120,7 @@ python -m unittest discover -s tests -v
 
 ## Deployment
 
-For production, the project is intended to run behind Gunicorn and a reverse proxy, for example:
+For production, run behind Gunicorn and a reverse proxy, for example:
 
 ```bash
 pip install gunicorn
@@ -140,4 +128,3 @@ gunicorn -w 4 -b 0.0.0.0:8000 app:app
 ```
 
 For Fly.io or similar hosts, the app stores uploads and the database under `/data` so they persist across deployments.
-
