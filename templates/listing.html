@@ -42,6 +42,9 @@
       <a href="/map/{{ '%.4f'|format(lat) }}/{{ '%.4f'|format(lng) }}/9">View the area on the big map →</a>
     </p>
     {% endif %}
+    {% elif mode == "random_group" %}
+    <h1 class="search-results-title">A random group of plaques</h1>
+    <p class="search-results-sub">{{ total }} plaque{{ 's' if total != 1 }} picked at random. Refresh for a new selection.</p>
     {% elif mode == "tag" %}
     <p class="tag-eyebrow">Tag</p>
     <h1 class="search-results-title tag-page-title"><span class="tag-pill tag-pill--large">{{ name }}</span></h1>
@@ -82,6 +85,8 @@
       <p>There are no approved plaques to show.</p>
     {% elif mode == "tag" %}
       <p>No approved plaques with this tag yet.</p>
+    {% elif mode == "random_group" %}
+      <p>There are no approved plaques to pick from yet.</p>
     {% else %}
       <p>No approved plaques from this submitter yet.</p>
     {% endif %}

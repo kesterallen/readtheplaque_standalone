@@ -2,6 +2,7 @@
 
 import random
 import re
+from urllib.parse import quote
 
 from markupsafe import Markup, escape
 from flask import (
@@ -453,11 +454,39 @@ def search_page(page=1):
     total_pages = max(1, -(-total // PER_PAGE))
     return render_template(
         "search_results.html",
+        mode="search",
+        page_title=f"Search: {q} — Read The Plaque",
+        paginator_url="/search?q={q}",
+        map_id="search-map",
+        list_heading="Results",
         q=q,
         plaques=plaques,
         total=total,
         page=page,
         total_pages=total_pages,
+    )
+
+# ── Random plaques gallery ────────────────────────────────────────────────────
+@public_bp.route("/random_group")
+def random_group():
+    """Show a fresh selection of up to 24 random approved plaques."""
+    with get_db() as db:
+        rows = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 ORDER BY RANDOM() LIMIT 24"
+        ).fetchall()
+
+    plaques = [plaque_to_dict(row) for row in rows]
+    return render_template(
+        "listing.html",
+        mode="random_group",
+        page_title="A Random Group of Plaques — Read The Plaque",
+        map_id="random-group-map",
+        list_heading="Random plaques",
+        plaques=plaques,
+        total=len(plaques),
+        page=1,
+        total_pages=1,
+        paginator_url=None,
     )
 
 
@@ -480,7 +509,17 @@ def nearby_gallery(lat, lng):
         km = p.get("distance_km") or 0.0  # SQLite acos() is NULL on an exact match
         p["distance_km"] = round(km, 1)
         p["distance_mi"] = round(km / 1.609344, 1)
-    return render_template("nearby.html", lat=lat_f, lng=lng_f, plaques=plaques)
+    return render_template(
+        "listing.html",
+        mode="nearby",
+        page_title= "Plaques near you — Read The Plaque",
+        paginator_url = None,
+        map_id="nearby-map",
+        list_heading="Nearest first",
+        lat=lat_f,
+        lng=lng_f,
+        plaques=plaques,
+    )
 
 
 # ── Tag page ──────────────────────────────────────────────────────────────────
@@ -511,8 +550,13 @@ def tag_page(tag_name):
     plaques = [plaque_to_dict(r) for r in rows]
     total_pages = max(1, -(-total // PER_PAGE))
     return render_template(
-        "filter.html",
+        "listing.html",
         filter_type="tag",
+        mode="tag",
+        page_title=f"#{tag_name} — Read The Plaque",
+        paginator_url=f"/tag/{tag_name}?",
+        map_id="filter-map",
+        list_heading="Plaques",
         name=tag_name,
         plaques=plaques,
         total=total,
@@ -544,6 +588,11 @@ def submitter_page(submitter_name):
     return render_template(
         "filter.html",
         filter_type="submitter",
+        mode="submitter",
+        page_title=f"Submitted by {submitter_name} — Read The Plaque",
+        paginator_url=f"/submitter/{quote(submitter_name, safe='')}?",
+        map_id="filter-map",
+        list_heading="Plaques",
         name=submitter_name,
         plaques=plaques,
         total=total,
