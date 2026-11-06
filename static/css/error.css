@@ -1,0 +1,79 @@
+.error-page {
+  min-height: min(58vh, 560px);
+  display: grid;
+  place-items: center;
+  padding: 48px 24px;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(217, 83, 79, .10), transparent 58%),
+    var(--bg);
+}
+
+.error-card {
+  width: min(100%, 620px);
+  padding: clamp(28px, 6vw, 56px);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .07);
+}
+
+.error-code {
+  margin: 0 0 8px;
+  color: var(--accent);
+  font-size: clamp(48px, 10vw, 76px);
+  font-weight: 800;
+  letter-spacing: -.07em;
+  line-height: 1;
+}
+
+.error-card h1 {
+  margin: 0 0 12px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(24px, 5vw, 34px);
+  line-height: 1.2;
+}
+
+.error-message {
+  max-width: 430px;
+  margin: 0 auto 28px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.error-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .15s, border-color .15s;
+}
+
+.error-action:hover {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+
+.error-action--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.error-action--primary:hover {
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+}

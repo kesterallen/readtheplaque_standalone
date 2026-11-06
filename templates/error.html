@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}{{ status }} — {{ title }} — Read The Plaque{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/error.css') }}">
+{% endblock %}
+
+{% block content %}
+<main class="error-page">
+  <section class="error-card" aria-labelledby="error-title">
+    <p class="error-code" aria-label="Error {{ status }}">{{ status }}</p>
+    <h1 id="error-title">{{ title }}</h1>
+    <p class="error-message">{{ message }}</p>
+    <nav class="error-actions" aria-label="Error page navigation">
+      <a class="error-action error-action--primary" href="/">Back to the plaques</a>
+      <a class="error-action" href="/map">Explore the map</a>
+    </nav>
+  </section>
+</main>
+{% endblock %}
