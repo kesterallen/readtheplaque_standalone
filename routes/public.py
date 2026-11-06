@@ -26,7 +26,8 @@ from database_queries import (
     list_tag_page,
     search_approved_plaques,
 )
-from helpers.pagination import paginate, total_pages
+from helpers.listing import paginated_rows_context
+from helpers.pagination import paginate
 from models import (
     _placeholder_jpeg,
     get_images_for_plaque,
@@ -59,13 +60,13 @@ def index(page=1):
             exclude_id=featured_row["id"] if featured_row else None,
         )
 
+    listing = paginated_rows_context(
+        rows, total, page, PER_PAGE, rows_key="recent"
+    )
     return render_template(
         "index.html",
         featured=plaque_to_dict(featured_row) if featured_row else None,
-        recent=[plaque_to_dict(row) for row in rows],
-        total=total,
-        page=page,
-        total_pages=total_pages(total, PER_PAGE),
+        **listing,
     )
 
 
@@ -177,10 +178,7 @@ def search_page(page=1):
         map_id="search-map",
         list_heading="Results",
         q=query,
-        plaques=[plaque_to_dict(row) for row in rows],
-        total=total,
-        page=page,
-        total_pages=total_pages(total, PER_PAGE),
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
 
@@ -253,10 +251,7 @@ def tag_page(tag_name):
         map_id="filter-map",
         list_heading="Plaques",
         name=tag_name,
-        plaques=[plaque_to_dict(row) for row in rows],
-        total=total,
-        page=page,
-        total_pages=total_pages(total, PER_PAGE),
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
 
@@ -279,10 +274,7 @@ def submitter_page(submitter_name):
         map_id="filter-map",
         list_heading="Plaques",
         name=submitter_name,
-        plaques=[plaque_to_dict(row) for row in rows],
-        total=total,
-        page=page,
-        total_pages=total_pages(total, PER_PAGE),
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
 
