@@ -1,6 +1,6 @@
 {% set mode = "search" %}
 {% set page_title = "Search: " ~ q ~ " — Read The Plaque" %}
+{% set paginator_url = "/search?q=" ~ q %}
 {% set map_id = "search-map" %}
 {% set list_heading = "Results" %}
-{% set paginator_url = "/search?q=" ~ q %}
 {% include "listing.html" %}
