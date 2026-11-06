@@ -1,7 +1,6 @@
 import io
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -76,7 +75,7 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual(payload["lat"], 37.5)
         self.assertEqual(payload["lng"], -122.2)
 
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             plaque = db.execute(
                 "SELECT id, slug, approved, image_file FROM plaques"
             ).fetchone()
@@ -98,7 +97,7 @@ class SubmissionTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("At least one image is required.", response.get_json()["errors"])
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
         self.assertEqual(count, 0)
 
@@ -109,7 +108,7 @@ class SubmissionTests(unittest.TestCase):
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 400)
         self.assertTrue(any("duplicate" in error.lower() for error in second.get_json()["errors"]))
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             count = db.execute("SELECT COUNT(*) FROM plaques").fetchone()[0]
         self.assertEqual(count, 1)
 

@@ -6,23 +6,54 @@ testable without an app context.
 """
 
 import sqlite3
-from contextlib import closing
 
 from config import DB_PATH
 
 
-def get_db() -> sqlite3.Connection:
-    """Open and return a connection to the SQLite database."""
+class _ManagedConnection:
+    """Wrap sqlite3.Connection so it commits/rolls back and closes on exit."""
+
+    def __init__(self, conn: sqlite3.Connection):
+        self._conn = conn
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+    def __enter__(self) -> sqlite3.Connection:
+        return self._conn
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            if exc_type is None:
+                self._conn.commit()
+            else:
+                self._conn.rollback()
+        finally:
+            self._conn.close()
+        return False
+
+    def close(self):
+        self._conn.close()
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+
+def get_db() -> _ManagedConnection:
+    """Open and return a managed SQLite database connection."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")  # better concurrency
     conn.execute("PRAGMA foreign_keys=ON")
-    return conn
+    return _ManagedConnection(conn)
 
 
 def init_db() -> None:
     """Create schema tables if they don't exist, then seed with sample data."""
-    with closing(get_db()) as db:
+    with get_db() as db:
         # DDL — executescript issues an implicit COMMIT before running
         db.executescript(
             """

@@ -1,7 +1,6 @@
 import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,7 +29,7 @@ class DatabaseTests(unittest.TestCase):
         return cursor.lastrowid
 
     def test_init_db_creates_expected_tables(self):
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             tables = {
                 row[0]
                 for row in db.execute(
@@ -41,7 +40,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue({"plaques", "tags", "plaque_tags", "plaque_images"} <= tables)
 
     def test_set_tags_replaces_existing_tags_and_normalizes_names(self):
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             plaque_id = self.insert_plaque(db)
             set_tags_for_plaque(db, plaque_id, ["  History ", "MEMORIAL", ""])
             db.commit()
@@ -54,7 +53,7 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual(get_tags_for_plaque(db, plaque_id), ["architecture"])
 
     def test_deleting_plaque_cascades_to_images(self):
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             plaque_id = self.insert_plaque(db)
             db.execute(
                 "INSERT INTO plaque_images (plaque_id, image_file) VALUES (?, ?)",
@@ -67,7 +66,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(count, 0)
 
     def test_connection_enables_foreign_key_checks(self):
-        with closing(database.get_db()) as db:
+        with database.get_db() as db:
             with self.assertRaises(sqlite3.IntegrityError):
                 db.execute(
                     "INSERT INTO plaque_images (plaque_id, image_file) VALUES (?, ?)",
