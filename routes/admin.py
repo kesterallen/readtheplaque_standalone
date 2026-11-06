@@ -18,6 +18,8 @@ from PIL import Image
 
 from config import ADMIN_PASSWORD, ALLOWED_EXT, PER_PAGE, THUMB_DIR, UPLOAD_DIR
 from database import get_db
+from database_queries import list_admin_plaque_page, list_pending_page
+from helpers.pagination import paginate, total_pages
 from models import (
     add_image_to_plaque,
     get_images_for_plaque,
@@ -42,7 +44,6 @@ def is_admin() -> bool:
     return session.get("admin") is True
 
 
-# ── Auth ───────────────────────────────────────────────────────────────────────
 @admin_bp.route("/login", methods=["GET", "POST"])
 def login():
     error = None
@@ -60,92 +61,58 @@ def logout():
     return redirect(url_for("public.index"))
 
 
-# ── Queue ──────────────────────────────────────────────────────────────────────
 @admin_bp.route("/queue")
 def queue():
     if not is_admin():
         return redirect(url_for("admin.login"))
-    page = max(1, request.args.get("page", 1, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", 1, type=int), PER_PAGE)
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=0").fetchone()[
-            0
-        ]
-        pending = db.execute(
-            "SELECT * FROM plaques WHERE approved=0 ORDER BY created_at ASC"
-            " LIMIT ? OFFSET ?",
-            (PER_PAGE, offset),
-        ).fetchall()
-    total_pages = max(1, -(-total // PER_PAGE))
+        total, pending = list_pending_page(db, limit=PER_PAGE, offset=offset)
     return render_template(
         "admin_queue.html",
-        pending=[plaque_to_dict(p) for p in pending],
+        pending=[plaque_to_dict(row) for row in pending],
         total=total,
         page=page,
-        total_pages=total_pages,
+        total_pages=total_pages(total, PER_PAGE),
     )
 
 
-# ── Plaques list ───────────────────────────────────────────────────────────────
 @admin_bp.route("/plaques")
 def plaques():
     if not is_admin():
         return redirect(url_for("admin.login"))
 
-    page = max(1, request.args.get("page", 1, type=int))
     per_page = 24
-    offset = (page - 1) * per_page
-
+    page, offset = paginate(request.args.get("page", 1, type=int), per_page)
     status = request.args.get("status", "all")
-
-    where_clauses: list[str] = []
-    params: list = []
-
-    if status == "approved":
-        where_clauses.append("approved = 1")
-    elif status == "pending":
-        where_clauses.append("approved = 0")
-
-    q = request.args.get("q", "").strip()
-    if q:
-        where_clauses.append("title LIKE ?")
-        params.append(f"%{q}%")
-
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-
-    sort_col = request.args.get("sort", "created_at")
-    sort_dir = request.args.get("dir", "desc")
-
-    allowed_cols = {"title", "created_at", "updated_at", "submitted_by", "approved"}
-    if sort_col not in allowed_cols:
-        sort_col = "created_at"
-    if sort_dir not in ("asc", "desc"):
-        sort_dir = "desc"
-
-    order_sql = f"ORDER BY {sort_col} {sort_dir.upper()}"
+    query = request.args.get("q", "").strip()
+    sort = request.args.get("sort", "created_at")
+    direction = request.args.get("dir", "desc")
 
     with get_db() as db:
-        rows = db.execute(
-            f"SELECT * FROM plaques {where_sql} {order_sql} LIMIT ? OFFSET ?",
-            (*params, per_page, offset),
-        ).fetchall()
-        total = db.execute(f"SELECT COUNT(*) FROM plaques {where_sql}", params).fetchone()[0]
+        total, rows, sort, direction = list_admin_plaque_page(
+            db,
+            status=status,
+            query=query,
+            sort=sort,
+            direction=direction,
+            limit=per_page,
+            offset=offset,
+        )
 
-    total_pages = max(1, -(-total // per_page))
     return render_template(
         "admin_plaques.html",
-        plaques=[plaque_to_dict(r) for r in rows],
+        plaques=[plaque_to_dict(row) for row in rows],
         page=page,
-        total_pages=total_pages,
+        total_pages=total_pages(total, per_page),
         total=total,
         status=status,
-        q=q,
-        sort=sort_col,
-        dir=sort_dir,
+        q=query,
+        sort=sort,
+        dir=direction,
     )
 
 
-# ── Approve / reject ───────────────────────────────────────────────────────────
 @admin_bp.route("/approve/<int:plaque_id>", methods=["POST"])
 def approve(plaque_id):
     if not is_admin():
@@ -173,18 +140,17 @@ def reject(plaque_id):
             "SELECT image_file, thumb_file FROM plaques WHERE id=?", (plaque_id,)
         ).fetchone()
         if row:
-            for col, folder in [("image_file", UPLOAD_DIR), ("thumb_file", THUMB_DIR)]:
-                f = row[col]
-                if f:
+            for column, folder in (("image_file", UPLOAD_DIR), ("thumb_file", THUMB_DIR)):
+                filename = row[column]
+                if filename:
                     try:
-                        os.remove(subdir_path(folder, f))
+                        os.remove(subdir_path(folder, filename))
                     except OSError:
                         pass
             db.execute("DELETE FROM plaques WHERE id=?", (plaque_id,))
     return jsonify({"ok": True})
 
 
-# ── Edit ───────────────────────────────────────────────────────────────────────
 @admin_bp.route("/edit/<int:plaque_id>", methods=["GET", "POST"])
 def edit(plaque_id):
     if not is_admin():
@@ -203,18 +169,17 @@ def edit(plaque_id):
         plaque["tags"] = tags
         plaque["images"] = [
             {
-                "image_url": image_url(img["image_file"]),
-                "thumb_url": thumb_url(img["thumb_file"])
-                or image_url(img["image_file"]),
-                "id": img["id"],
-                "is_primary": img["is_primary"],
-                "sort_order": img["sort_order"],
+                "image_url": image_url(image["image_file"]),
+                "thumb_url": thumb_url(image["thumb_file"])
+                or image_url(image["image_file"]),
+                "id": image["id"],
+                "is_primary": image["is_primary"],
+                "sort_order": image["sort_order"],
             }
-            for img in images
+            for image in images
         ]
         return render_template("admin_edit.html", plaque=plaque)
 
-    # POST — save edits
     errors = []
     title = request.form.get("title", "").strip()
     description = request.form.get("description", "").strip()
@@ -246,13 +211,13 @@ def edit(plaque_id):
             new_image.save(subdir_path(UPLOAD_DIR, filename))
             thumb_filename = new_thumb_filename()
             thumb_ok = make_thumbnail(filename, thumb_filename)
-            for old_f, folder in [
+            for old_filename, folder in (
                 (row["image_file"], UPLOAD_DIR),
                 (row["thumb_file"], THUMB_DIR),
-            ]:
-                if old_f:
+            ):
+                if old_filename:
                     try:
-                        os.remove(subdir_path(folder, old_f))
+                        os.remove(subdir_path(folder, old_filename))
                     except OSError:
                         pass
             new_img_file = filename
@@ -270,7 +235,6 @@ def edit(plaque_id):
         set_tags_for_plaque(db, plaque_id, tag_names)
         if set_featured:
             db.execute("UPDATE plaques SET is_featured=0")
-        # Regenerate slug if title changed
         new_slug = row["slug"]
         if title != row["title"]:
             new_slug = make_or_update_slug(db, title, exclude_id=plaque_id)
@@ -286,7 +250,7 @@ def edit(plaque_id):
                 lng,
                 submitted_by,
                 approved,
-                1 if set_featured else 0,
+                int(set_featured),
                 new_img_file,
                 new_thumb_file,
                 datetime.datetime.now(datetime.UTC),
@@ -294,31 +258,26 @@ def edit(plaque_id):
             ),
         )
 
-    if approved:
-        url = url_for("public.plaque_detail", slug=new_slug)
-    else:
-        url = url_for("admin.queue")
-    return redirect(url)
+    destination = (
+        url_for("public.plaque_detail", slug=new_slug)
+        if approved
+        else url_for("admin.queue")
+    )
+    return redirect(destination)
 
 
-# ── Rotate ─────────────────────────────────────────────────────────────────────
 @admin_bp.route("/rotate/<int:plaque_id>", methods=["POST"])
 def rotate(plaque_id):
-    """Rotate 90° clockwise. ?type=image treats plaque_id as plaque_images.id."""
+    """Rotate 90° clockwise; ?type=image uses a plaque_images ID."""
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
 
-    use_image_id = request.args.get("type") == "image"
+    if request.args.get("type") == "image":
+        query = "SELECT image_file, thumb_file FROM plaque_images WHERE id=?"
+    else:
+        query = "SELECT image_file, thumb_file FROM plaques WHERE id=?"
     with get_db() as db:
-        if use_image_id:
-            row = db.execute(
-                "SELECT image_file, thumb_file FROM plaque_images WHERE id=?",
-                (plaque_id,),
-            ).fetchone()
-        else:
-            row = db.execute(
-                "SELECT image_file, thumb_file FROM plaques WHERE id=?", (plaque_id,)
-            ).fetchone()
+        row = db.execute(query, (plaque_id,)).fetchone()
     if not row:
         return jsonify({"ok": False, "error": "Not found"}), 404
 
@@ -331,13 +290,12 @@ def rotate(plaque_id):
             img.rotate(-90, expand=True).save(img_path)
         if row["thumb_file"]:
             make_thumbnail(row["image_file"], row["thumb_file"])
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    except Exception as error:
+        return jsonify({"ok": False, "error": str(error)}), 500
 
     return jsonify({"ok": True})
 
 
-# ── Feature ────────────────────────────────────────────────────────────────────
 def _feature(plaque_id: int):
     with get_db() as db:
         db.execute("UPDATE plaques SET is_featured=0")
@@ -352,10 +310,9 @@ def feature_random():
 
     with get_db() as db:
         rows = db.execute("SELECT id FROM plaques WHERE approved=1").fetchall()
-        if not rows:
-            abort(404)
-        id = random.choice(rows)["id"]
-        return _feature(id)
+    if not rows:
+        abort(404)
+    return _feature(random.choice(rows)["id"])
 
 
 @admin_bp.route("/feature/<int:plaque_id>", methods=["POST"])
@@ -363,42 +320,40 @@ def feature(plaque_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
-        row = db.execute("SELECT id FROM plaques WHERE id=? AND approved=1", (plaque_id,)).fetchone()
-        if not row:
-            return (jsonify({"ok": False, "error": "Plaque not found or not approved"}), 404,)
-        id = row["id"]
-        return _feature(id)
+        row = db.execute(
+            "SELECT id FROM plaques WHERE id=? AND approved=1", (plaque_id,)
+        ).fetchone()
+    if not row:
+        return jsonify({"ok": False, "error": "Plaque not found or not approved"}), 404
+    return _feature(row["id"])
 
 
-# ── Image management ───────────────────────────────────────────────────────────
 @admin_bp.route("/images/<int:plaque_id>/add", methods=["POST"])
 def image_add(plaque_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
-    f = request.files.get("image")
-    if not f or not f.filename:
+    file_obj = request.files.get("image")
+    if not file_obj or not file_obj.filename:
         return jsonify({"ok": False, "error": "No image provided"}), 400
-    ext = f.filename.rsplit(".", 1)[-1].lower()
+    ext = file_obj.filename.rsplit(".", 1)[-1].lower()
     if ext not in ALLOWED_EXT:
         return jsonify({"ok": False, "error": "File type not allowed"}), 400
+
     with get_db() as db:
         count = db.execute(
             "SELECT COUNT(*) FROM plaque_images WHERE plaque_id=?", (plaque_id,)
         ).fetchone()[0]
         result = add_image_to_plaque(
-            db, plaque_id, f, ext, is_primary=(count == 0), sort_order=count
+            db, plaque_id, file_obj, ext, is_primary=(count == 0), sort_order=count
         )
         if result["duplicate"]:
-            return (
-                jsonify(
-                    {
-                        "ok": False,
-                        "error": "Duplicate image — already attached to this plaque",
-                        "duplicate": True,
-                    }
-                ),
-                409,
-            )
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "Duplicate image — already attached to this plaque",
+                    "duplicate": True,
+                }
+            ), 409
         row = db.execute(
             "SELECT id FROM plaque_images WHERE plaque_id=? ORDER BY id DESC LIMIT 1",
             (plaque_id,),
@@ -419,34 +374,40 @@ def image_delete(image_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
-        img = db.execute(
+        image = db.execute(
             "SELECT * FROM plaque_images WHERE id=?", (image_id,)
         ).fetchone()
-        if not img:
+        if not image:
             return jsonify({"ok": False, "error": "Image not found"}), 404
-        plaque_id = img["plaque_id"]
+        plaque_id = image["plaque_id"]
         count = db.execute(
             "SELECT COUNT(*) FROM plaque_images WHERE plaque_id=?", (plaque_id,)
         ).fetchone()[0]
         if count <= 1:
             return jsonify({"ok": False, "error": "Cannot delete the only image"}), 400
-        for f, folder in [
-            (img["image_file"], UPLOAD_DIR),
-            (img["thumb_file"], THUMB_DIR),
-        ]:
-            if f:
-                try:
-                    os.remove(subdir_path(folder, f))
-                except OSError:
-                    pass
+
         db.execute("DELETE FROM plaque_images WHERE id=?", (image_id,))
-        if img["is_primary"]:
+        if image["is_primary"]:
             db.execute(
-                "UPDATE plaque_images SET is_primary=1"
-                " WHERE plaque_id=? ORDER BY sort_order, id LIMIT 1",
+                "UPDATE plaque_images SET is_primary=0 WHERE plaque_id=?", (plaque_id,)
+            )
+            db.execute(
+                "UPDATE plaque_images SET is_primary=1 WHERE id=("
+                "SELECT id FROM plaque_images WHERE plaque_id=?"
+                " ORDER BY sort_order, id LIMIT 1)",
                 (plaque_id,),
             )
             sync_primary_image(db, plaque_id)
+
+    for filename, folder in (
+        (image["image_file"], UPLOAD_DIR),
+        (image["thumb_file"], THUMB_DIR),
+    ):
+        if filename:
+            try:
+                os.remove(subdir_path(folder, filename))
+            except OSError:
+                pass
     return jsonify({"ok": True})
 
 
@@ -455,12 +416,12 @@ def image_set_primary(image_id):
     if not is_admin():
         return jsonify({"ok": False, "error": "Not authenticated"}), 403
     with get_db() as db:
-        img = db.execute(
+        image = db.execute(
             "SELECT * FROM plaque_images WHERE id=?", (image_id,)
         ).fetchone()
-        if not img:
+        if not image:
             return jsonify({"ok": False, "error": "Image not found"}), 404
-        plaque_id = img["plaque_id"]
+        plaque_id = image["plaque_id"]
         db.execute(
             "UPDATE plaque_images SET is_primary=0 WHERE plaque_id=?", (plaque_id,)
         )

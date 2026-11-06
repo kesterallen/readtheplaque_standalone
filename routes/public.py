@@ -16,14 +16,17 @@ from flask import (
 )
 from markupsafe import Markup
 
-from config import (
-    PER_PAGE,
-    SHARE_IMAGE_MAX_MB,
-    SITE_URL,
-    THUMB_DIR,
-    UPLOAD_DIR,
-)
+from config import PER_PAGE, SHARE_IMAGE_MAX_MB, SITE_URL, THUMB_DIR, UPLOAD_DIR
 from database import get_db
+from database_queries import (
+    count_plaques,
+    get_featured_plaque,
+    list_approved_plaque_page,
+    list_submitter_page,
+    list_tag_page,
+    search_approved_plaques,
+)
+from helpers.pagination import paginate, total_pages
 from models import (
     _placeholder_jpeg,
     get_images_for_plaque,
@@ -44,25 +47,17 @@ public_bp = Blueprint("public", __name__)
 @public_bp.route("/")
 @public_bp.route("/page/<int:page>")
 def index(page=1):
-    page = max(1, request.args.get("page", page, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", page, type=int), PER_PAGE)
 
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
-        featured_row = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND is_featured=1 LIMIT 1"
-        ).fetchone()
-        if not featured_row:
-            featured_row = db.execute(
-                "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
-
-        featured_id = featured_row["id"] if featured_row else None
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND id != ?"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (featured_id or -1, PER_PAGE, offset),
-        ).fetchall()
+        total = count_plaques(db, approved=True)
+        featured_row = get_featured_plaque(db)
+        rows = list_approved_plaque_page(
+            db,
+            limit=PER_PAGE,
+            offset=offset,
+            exclude_id=featured_row["id"] if featured_row else None,
+        )
 
     return render_template(
         "index.html",
@@ -70,7 +65,7 @@ def index(page=1):
         recent=[plaque_to_dict(row) for row in rows],
         total=total,
         page=page,
-        total_pages=max(1, -(-total // PER_PAGE)),
+        total_pages=total_pages(total, PER_PAGE),
     )
 
 
@@ -78,10 +73,7 @@ def index(page=1):
 @public_bp.route("/feed")
 def feed():
     with get_db() as db:
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT ?",
-            (PER_PAGE,),
-        ).fetchall()
+        rows = list_approved_plaque_page(db, limit=PER_PAGE, offset=0)
     return render_template("feed.xml", recent=[plaque_to_dict(row) for row in rows])
 
 
@@ -92,7 +84,7 @@ def map_view(coords=None):
     if coords:
         lat, lng, zoom = path_to_lat_lng_zoom(coords, lat, lng, zoom)
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
+        total = count_plaques(db, approved=True)
     return render_template(
         "map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom
     )
@@ -167,38 +159,28 @@ def plaque_detail(slug):
 @public_bp.route("/search")
 @public_bp.route("/search/<int:page>")
 def search_page(page=1):
-    page = max(1, request.args.get("page", page, type=int))
-    offset = (page - 1) * PER_PAGE
-    q = request.args.get("q", "").strip()
-    if not q:
+    page, offset = paginate(request.args.get("page", page, type=int), PER_PAGE)
+    query = request.args.get("q", "").strip()
+    if not query:
         return redirect(url_for("public.index"))
 
-    like = f"%{q}%"
     with get_db() as db:
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques WHERE approved=1"
-            " AND (title LIKE ? OR description LIKE ?)",
-            (like, like),
-        ).fetchone()[0]
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1"
-            " AND (title LIKE ? OR description LIKE ?)"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (like, like, PER_PAGE, offset),
-        ).fetchall()
+        total, rows = search_approved_plaques(
+            db, query, limit=PER_PAGE, offset=offset
+        )
 
     return render_template(
         "search_results.html",
         mode="search",
-        page_title=f"Search: {q} — Read The Plaque",
-        paginator_url=f"/search?q={q}",
+        page_title=f"Search: {query} — Read The Plaque",
+        paginator_url=f"/search?q={query}",
         map_id="search-map",
         list_heading="Results",
-        q=q,
+        q=query,
         plaques=[plaque_to_dict(row) for row in rows],
         total=total,
         page=page,
-        total_pages=max(1, -(-total // PER_PAGE)),
+        total_pages=total_pages(total, PER_PAGE),
     )
 
 
@@ -255,27 +237,13 @@ def nearby_gallery(lat, lng):
 @public_bp.route("/tag/<tag_name>")
 def tag_page(tag_name):
     tag_name = tag_name.strip().lower()
-    page = max(1, request.args.get("page", 1, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", 1, type=int), PER_PAGE)
     with get_db() as db:
-        tag = db.execute("SELECT * FROM tags WHERE name=?", (tag_name,)).fetchone()
-        if not tag:
-            abort(404)
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques p"
-            " JOIN plaque_tags pt ON pt.plaque_id = p.id"
-            " JOIN tags t ON t.id = pt.tag_id"
-            " WHERE t.name=? AND p.approved=1",
-            (tag_name,),
-        ).fetchone()[0]
-        rows = db.execute(
-            "SELECT p.* FROM plaques p"
-            " JOIN plaque_tags pt ON pt.plaque_id = p.id"
-            " JOIN tags t ON t.id = pt.tag_id"
-            " WHERE t.name=? AND p.approved=1 ORDER BY p.created_at DESC"
-            " LIMIT ? OFFSET ?",
-            (tag_name, PER_PAGE, offset),
-        ).fetchall()
+        exists, total, rows = list_tag_page(
+            db, tag_name, limit=PER_PAGE, offset=offset
+        )
+    if not exists:
+        abort(404)
     return render_template(
         "listing.html",
         filter_type="tag",
@@ -288,27 +256,20 @@ def tag_page(tag_name):
         plaques=[plaque_to_dict(row) for row in rows],
         total=total,
         page=page,
-        total_pages=max(1, -(-total // PER_PAGE)),
+        total_pages=total_pages(total, PER_PAGE),
     )
 
 
 @public_bp.route("/submitter/<path:submitter_name>")
 def submitter_page(submitter_name):
     submitter_name = submitter_name.strip()
-    page = max(1, request.args.get("page", 1, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", 1, type=int), PER_PAGE)
     with get_db() as db:
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques WHERE approved=1 AND submitted_by=?",
-            (submitter_name,),
-        ).fetchone()[0]
-        if not total:
-            abort(404)
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND submitted_by=?"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (submitter_name, PER_PAGE, offset),
-        ).fetchall()
+        total, rows = list_submitter_page(
+            db, submitter_name, limit=PER_PAGE, offset=offset
+        )
+    if not total:
+        abort(404)
     return render_template(
         "filter.html",
         filter_type="submitter",
@@ -321,7 +282,7 @@ def submitter_page(submitter_name):
         plaques=[plaque_to_dict(row) for row in rows],
         total=total,
         page=page,
-        total_pages=max(1, -(-total // PER_PAGE)),
+        total_pages=total_pages(total, PER_PAGE),
     )
 
 
@@ -342,12 +303,8 @@ def about():
 @public_bp.route("/counts")
 def counts():
     with get_db() as db:
-        pending = db.execute(
-            "SELECT count(*) FROM plaques WHERE approved = 0"
-        ).fetchone()[0]
-        approved = db.execute(
-            "SELECT count(*) FROM plaques WHERE approved != 0"
-        ).fetchone()[0]
+        pending = count_plaques(db, approved=False)
+        approved = count_plaques(db, approved=True)
     return f"Pending: {pending}; Approved: {approved}; Total: {pending + approved}"
 
 
