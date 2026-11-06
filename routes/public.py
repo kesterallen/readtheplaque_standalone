@@ -188,7 +188,7 @@ def search_page(page=1):
         ).fetchall()
 
     return render_template(
-        "search_results.html",
+        "listing.html",
         mode="search",
         page_title=f"Search: {q} — Read The Plaque",
         paginator_url=f"/search?q={q}",
