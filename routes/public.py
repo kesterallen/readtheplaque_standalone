@@ -27,7 +27,7 @@ from database_queries import (
     search_approved_plaques,
 )
 from helpers.listing import paginated_rows_context
-from helpers.pagination import paginate
+from helpers.pagination import paginate, total_pages
 from models import (
     _placeholder_jpeg,
     get_images_for_plaque,
