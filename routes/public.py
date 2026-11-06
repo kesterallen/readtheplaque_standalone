@@ -586,7 +586,7 @@ def submitter_page(submitter_name):
     plaques = [plaque_to_dict(r) for r in rows]
     total_pages = max(1, -(-total // PER_PAGE))
     return render_template(
-        "filter.html",
+        "listing.html",
         filter_type="submitter",
         mode="submitter",
         page_title=f"Submitted by {submitter_name} — Read The Plaque",
