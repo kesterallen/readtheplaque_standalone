@@ -44,12 +44,12 @@
     {% endif %}
     {% elif mode == "tag" %}
     <p class="tag-eyebrow">Tag</p>
-    <h1 class="tag-page-title"><span class="tag-pill tag-pill--large">{{ name }}</span></h1>
-    <div class="tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
+    <h1 class="search-results-title tag-page-title"><span class="tag-pill tag-pill--large">{{ name }}</span></h1>
+    <div class="search-results-sub tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
     {% else %}
     <p class="tag-eyebrow">Submitted by</p>
-    <h1 class="tag-page-title"><span class="tag-pill tag-pill--large">👤 {{ name }}</span></h1>
-    <div class="tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
+    <h1 class="search-results-title tag-page-title"><span class="tag-pill tag-pill--large">👤 {{ name }}</span></h1>
+    <div class="search-results-sub tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
     {% endif %}
   </div>
 
