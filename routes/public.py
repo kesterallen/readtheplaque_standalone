@@ -1,14 +1,12 @@
-"""Public-facing routes: homepage, plaque detail, map, submit, tag, random, about."""
+"""Public-facing page routes: browsing, plaque details, maps, and filters."""
 
+import os
 import random
-import re
 from urllib.parse import quote
 
-from markupsafe import Markup, escape
 from flask import (
     Blueprint,
     abort,
-    jsonify,
     redirect,
     render_template,
     request,
@@ -16,110 +14,70 @@ from flask import (
     session,
     url_for,
 )
+from markupsafe import Markup
 
-from config import (
-    ALLOWED_EXT,
-    HCAPTCHA_SITEKEY,
-    MAX_FILE_MB,
-    MAX_UPLOAD_MB,
-    PER_PAGE,
-    SHARE_IMAGE_MAX_MB,
-    SITE_URL,
-    THUMB_DIR,
-    UPLOAD_DIR,
-)
-from routes.api import _get_closest_plaques
-from spam import (
-    check_content,
-    check_honeypot,
-    check_rate_limit,
-    HONEYPOT_FIELD,
-    verify_captcha,
-)
+from config import PER_PAGE, SHARE_IMAGE_MAX_MB, SITE_URL, THUMB_DIR, UPLOAD_DIR
 from database import get_db
+from database_queries import (
+    count_plaques,
+    get_featured_plaque,
+    list_approved_plaque_page,
+    list_submitter_page,
+    list_tag_page,
+    search_approved_plaques,
+)
+from helpers.listing import paginated_rows_context
+from helpers.pagination import paginate, total_pages
 from models import (
     _placeholder_jpeg,
-    add_image_to_plaque,
     get_images_for_plaque,
     get_tags_for_plaque,
     image_url,
-    make_or_update_slug,
-    make_thumbnail,
-    new_image_filename,
-    new_thumb_filename,
-    parse_tags,
+    path_to_lat_lng_zoom,
     plaque_to_dict,
     sanitise_description,
-    set_tags_for_plaque,
-    path_to_lat_lng_zoom,
     subdir_path,
     thumb_url,
 )
-
-import hashlib
-import os
+from routes.api import _get_closest_plaques
+from routes.submissions import register_submission_routes
 
 public_bp = Blueprint("public", __name__)
 
 
-# ── Homepage ───────────────────────────────────────────────────────────────────
 @public_bp.route("/")
-@public_bp.route("/page/<int:page>") # TODO: make this route work
+@public_bp.route("/page/<int:page>")
 def index(page=1):
-    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work, this'll need to get skipped if page is specified in the route
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", page, type=int), PER_PAGE)
 
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
+        total = count_plaques(db, approved=True)
+        featured_row = get_featured_plaque(db)
+        rows = list_approved_plaque_page(
+            db,
+            limit=PER_PAGE,
+            offset=offset,
+            exclude_id=featured_row["id"] if featured_row else None,
+        )
 
-        featured_row = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND is_featured=1 LIMIT 1"
-        ).fetchone()
-        if not featured_row:
-            featured_row = db.execute(
-                "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
-
-        featured_id = featured_row["id"] if featured_row else None
-
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND id != ?"
-            " ORDER BY created_at DESC"
-            " LIMIT ? OFFSET ?",
-            (featured_id or -1, PER_PAGE, offset),
-        ).fetchall()
-
-    featured = plaque_to_dict(featured_row) if featured_row else None
-    recent = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // PER_PAGE))
-
+    listing = paginated_rows_context(
+        rows, total, page, PER_PAGE, rows_key="recent"
+    )
     return render_template(
         "index.html",
-        featured=featured,
-        recent=recent,
-        total=total,
-        page=page,
-        total_pages=total_pages,
+        featured=plaque_to_dict(featured_row) if featured_row else None,
+        **listing,
     )
 
 
-# ── RSS Feed ──────────────────────────────────────────────────────────────────
 @public_bp.route("/rss")
 @public_bp.route("/feed")
 def feed():
     with get_db() as db:
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 ORDER BY created_at DESC LIMIT ?",
-            (PER_PAGE,),
-        ).fetchall()
-    recent = [plaque_to_dict(r) for r in rows]
-    return render_template(
-        "feed.xml",
-        recent=recent,
-    )
+        rows = list_approved_plaque_page(db, limit=PER_PAGE, offset=0)
+    return render_template("feed.xml", recent=[plaque_to_dict(row) for row in rows])
 
 
-# ── Map ───────────────────────────────────────────────────────────────────────
 @public_bp.route("/map")
 @public_bp.route("/map/<path:coords>")
 def map_view(coords=None):
@@ -127,235 +85,14 @@ def map_view(coords=None):
     if coords:
         lat, lng, zoom = path_to_lat_lng_zoom(coords, lat, lng, zoom)
     with get_db() as db:
-        total = db.execute("SELECT COUNT(*) FROM plaques WHERE approved=1").fetchone()[0]
+        total = count_plaques(db, approved=True)
     return render_template(
         "map.html", total=total, init_lat=lat, init_lng=lng, init_zoom=zoom
     )
 
 
-# ── Submit ────────────────────────────────────────────────────────────────────
-@public_bp.route("/submit", methods=["GET", "POST"])
-def submit():
-    if request.method == "GET":
-        return render_template(
-            "submit.html",
-            hcaptcha_sitekey=HCAPTCHA_SITEKEY,
-            honeypot_field=HONEYPOT_FIELD,
-            max_file_mb=MAX_FILE_MB,
-            max_upload_mb=MAX_UPLOAD_MB,
-        )
-
-    # ── Spam checks ────────────────────────────────────────────────────────────
-    # Honeypot — bots fill this hidden field, humans never see it
-    if check_honeypot(request.form):
-        return jsonify(
-            {"ok": True, "slug": "pending", "pending": True}
-        )  # silent discard
-
-    # Rate limit
-    ip = (
-        request.headers.get("X-Forwarded-For", request.remote_addr or "")
-        .split(",")[0]
-        .strip()
-    )
-    rate_ok, rate_err = check_rate_limit(ip)
-    if not rate_ok:
-        return jsonify({"ok": False, "errors": [rate_err]}), 429
-
-    # hCaptcha
-    captcha_token = request.form.get("h-captcha-response", "")
-    captcha_ok, captcha_err = verify_captcha(captcha_token)
-    if not captcha_ok:
-        return jsonify({"ok": False, "errors": [captcha_err]}), 400
-
-    errors = []
-    title = request.form.get("title", "").strip()
-    description = request.form.get("description", "").strip()
-    submitted_by = request.form.get("submitted_by", "anonymous").strip() or "anonymous"
-    raw_tags = request.form.get("tags", "")
-    tag_names = parse_tags(raw_tags)
-
-    try:
-        lat = float(request.form.get("latitude", ""))
-        lng = float(request.form.get("longitude", ""))
-    except ValueError:
-        errors.append("Valid latitude and longitude are required.")
-        lat = lng = 0.0
-
-    if not title:
-        errors.append("Title is required.")
-    if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
-        errors.append("Coordinates out of range.")
-
-    # Content spam check
-    content_ok, content_err = check_content(title, description)
-    if not content_ok:
-        errors.append(content_err)
-
-    image_files = request.files.getlist("images")
-    saved_images, img_errors = _save_images(image_files)
-    errors.extend(img_errors)
-
-    if not saved_images:
-        return jsonify({"ok": False, "errors": errors or ["No images could be saved."]}), 400
-    if errors:
-        return jsonify({"ok": False, "errors": errors}), 400
-
-    # created_at / updated_at let the admin-run importer keep a plaque's original
-    # dates. Anonymous visitors must not set them: a future date would pin their
-    # plaque to the top of "most recent" forever, and a past one would hide it.
-    if session.get("admin") is True:
-        created_at = request.form.get("created_at", None)
-        updated_at = request.form.get("updated_at", None)
-    else:
-        created_at = updated_at = None
-
-    plaque_id, slug = _insert_plaque_rows(
-        title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
-    )
-    with get_db() as db:
-        set_tags_for_plaque(db, plaque_id, tag_names)
-
-    resp = {"ok": True, "slug": slug, "pending": True, "lat": lat, "lng": lng}
-    return jsonify(resp)
-
-
-def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
-    saved_images: list[dict] = []
-    errors: list[str] = []
-
-    image_files = [f for f in image_files if f and f.filename]
-    if not image_files:
-        errors.append("At least one image is required.")
-        return saved_images, errors
-
-    for f in image_files:
-        ext = f.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ALLOWED_EXT:
-            errors.append(f"'{escape(f.filename)}': allowed types are {', '.join(ALLOWED_EXT)}")
-        f.stream.seek(0, os.SEEK_END)
-        size = f.stream.tell()
-        f.stream.seek(0)
-        if size > MAX_FILE_MB * 1024 * 1024:
-            errors.append(
-                f"'{escape(f.filename)}' is {size / 1048576:.1f} MB; "
-                f"the limit is {MAX_FILE_MB} MB per photo."
-            )
-
-    if errors:
-        return saved_images, errors
-
-    for image_file in image_files:
-        ext = image_file.filename.rsplit(".", 1)[-1].lower()
-        data = image_file.read()
-        image_hash = hashlib.sha256(data).hexdigest()
-
-        # Verify uniqueness of image_hash (prevent dup images):
-        with get_db() as db:
-            duplicate_plaque = db.execute(
-                "SELECT p.title AS title, p.slug AS slug "
-                "FROM plaque_images pi "
-                "JOIN  plaques p ON pi.plaque_id = p.id "
-                "WHERE pi.image_hash=?", (image_hash,),
-            ).fetchone()
-            if duplicate_plaque:
-                errors.append(
-                    f"Image {escape(image_file.filename)} is a duplicate of "
-                    f'<a href="/plaque/{escape(duplicate_plaque["slug"])}">'
-                    f'{escape(duplicate_plaque["title"])}</a>.'
-                )
-                continue
-        
-        filename = new_image_filename(ext)
-        with open(subdir_path(UPLOAD_DIR, filename), "wb") as fh:
-            fh.write(data)
-        thumb_filename = new_thumb_filename()
-        thumb_ok = make_thumbnail(filename, thumb_filename)
-        saved_images.append(
-            {
-                "filename": filename,
-                "thumb": thumb_filename if thumb_ok else None,
-                "hash": image_hash,
-                "original_name": image_file.filename,
-            }
-        )
-    return saved_images, errors
-
-
-def _insert_plaque_rows(
-    title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
-) -> tuple[int, str]:
-    with get_db() as db:
-        primary = saved_images[0]
-        slug = make_or_update_slug(db, title)
-
-        # Build column list and values dynamically for optional fields
-        cols = [
-            "slug",
-            "title",
-            "description",
-            "latitude",
-            "longitude",
-            "image_file",
-            "thumb_file",
-            "submitted_by",
-            "approved",
-        ]
-        vals = [
-            slug,
-            title,
-            description,
-            lat,
-            lng,
-            primary["filename"],
-            primary["thumb"],
-            submitted_by,
-            0,
-        ]
-        if created_at is not None:
-            cols.append("created_at")
-            vals.append(created_at)
-        if updated_at is not None:
-            cols.append("updated_at")
-            vals.append(updated_at)
-
-        placeholders = ", ".join("?" * len(cols))
-
-        db.execute(
-            f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals
-        )
-        plaque_id = db.execute(
-            "SELECT id FROM plaques WHERE slug=?", (slug,)
-        ).fetchone()["id"]
-
-        saved = 0
-        for i, img in enumerate(saved_images):
-            db.execute(
-                "INSERT INTO plaque_images"
-                " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order)"
-                " VALUES (?,?,?,?,?,?)",
-                (
-                    plaque_id,
-                    img["filename"],
-                    img["thumb"],
-                    img["hash"],
-                    1 if saved == 0 else 0,
-                    i,
-                ),
-            )
-            saved += 1
-
-    return plaque_id, slug
-
-
-# ── Plaque detail ─────────────────────────────────────────────────────────────
-# ── Link previews ─────────────────────────────────────────────────────────────
 def _site_root() -> str:
-    """Absolute address of this site; share tags need full URLs, not paths.
-
-    $SITE_URL if set, else the address this request came in on, using https when
-    Fly's proxy reports the visitor did (Flask itself only ever sees plain http).
-    """
+    """Return the configured site URL or the current request's external origin."""
     if SITE_URL:
         return SITE_URL
     scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",")[0].strip()
@@ -365,19 +102,15 @@ def _site_root() -> str:
 
 
 def _share_description(raw: str | None, limit: int = 200) -> str:
-    """Plain-text summary of a plaque's text for a preview card."""
-    text = Markup(raw or "").striptags()  # drops tags, decodes &amp; etc.
+    """Create a plain-text summary for social sharing metadata."""
+    text = Markup(raw or "").striptags()
     if len(text) > limit:
         text = text[:limit].rsplit(" ", 1)[0].rstrip(" ,.;:-–—") + "…"
     return text or "A plaque on Read The Plaque, a map of the world's historical plaques."
 
 
 def _share_image(plaque: dict) -> tuple[str, str]:
-    """Pick the preview image. Returns (absolute URL, X card type).
-
-    The full photo gives a big preview card, but only if Facebook and X will
-    fetch it (see SHARE_IMAGE_MAX_MB); otherwise use the thumbnail.
-    """
+    """Choose a full-size or thumbnail image for link previews."""
     try:
         size = os.path.getsize(subdir_path(UPLOAD_DIR, plaque["image_file"]))
     except OSError:
@@ -424,49 +157,31 @@ def plaque_detail(slug):
     )
 
 
-# ── Search results page ───────────────────────────────────────────────────────
 @public_bp.route("/search")
-@public_bp.route("/search/<int:page>") # TODO: make this route work
+@public_bp.route("/search/<int:page>")
 def search_page(page=1):
-    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work this'll need to get skipped if page is specified in the route
-    offset = (page - 1) * PER_PAGE
-
-    q = request.args.get("q", "").strip()
-    if not q:
+    page, offset = paginate(request.args.get("page", page, type=int), PER_PAGE)
+    query = request.args.get("q", "").strip()
+    if not query:
         return redirect(url_for("public.index"))
-    like = f"%{q}%"
-    with get_db() as db:
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques WHERE approved=1"
-            " AND (title LIKE ? OR description LIKE ?)",
-            (like, like),
-        ).fetchone()[0]
 
-        # TODO: note this seaches title AND description, might want to be able to limit to title-only
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1"
-            " AND (title LIKE ? OR description LIKE ?)"
-            " ORDER BY created_at DESC"
-            " LIMIT ? OFFSET ?",
-            (like, like, PER_PAGE, offset),
-        ).fetchall()
-    plaques = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // PER_PAGE))
+    with get_db() as db:
+        total, rows = search_approved_plaques(
+            db, query, limit=PER_PAGE, offset=offset
+        )
+
     return render_template(
         "listing.html",
         mode="search",
-        page_title=f"Search: {q} — Read The Plaque",
-        paginator_url="/search?q={q}",
+        page_title=f"Search: {query} — Read The Plaque",
+        paginator_url=f"/search?q={query}",
         map_id="search-map",
         list_heading="Results",
-        q=q,
-        plaques=plaques,
-        total=total,
-        page=page,
-        total_pages=total_pages,
+        q=query,
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
-# ── Random plaques gallery ────────────────────────────────────────────────────
+
 @public_bp.route("/random_group")
 def random_group():
     """Show a fresh selection of up to 24 random approved plaques."""
@@ -474,7 +189,6 @@ def random_group():
         rows = db.execute(
             "SELECT * FROM plaques WHERE approved=1 ORDER BY RANDOM() LIMIT 24"
         ).fetchall()
-
     plaques = [plaque_to_dict(row) for row in rows]
     return render_template(
         "listing.html",
@@ -490,30 +204,26 @@ def random_group():
     )
 
 
-# ── Nearby-me gallery ─────────────────────────────────────────────────────────
 @public_bp.route("/nearby/<lat>/<lng>")
 def nearby_gallery(lat, lng):
-    """The PER_PAGE approved plaques nearest to (lat, lng), closest first."""
-    # Validated strictly (404, not clamped) because every lat/lng pair is a URL.
-    # Not <float:...>, which rejects negatives and whole numbers.
+    """Show approved plaques nearest to a coordinate pair."""
     try:
         lat_f, lng_f = float(lat), float(lng)
     except ValueError:
         abort(404)
-    # Written as `not (in range)` so NaN, which compares False, is rejected too.
     if not (-90 <= lat_f <= 90 and -180 <= lng_f <= 180):
         abort(404)
 
     plaques = _get_closest_plaques(lat_f, lng_f, limit=PER_PAGE)
-    for p in plaques:
-        km = p.get("distance_km") or 0.0  # SQLite acos() is NULL on an exact match
-        p["distance_km"] = round(km, 1)
-        p["distance_mi"] = round(km / 1.609344, 1)
+    for plaque in plaques:
+        km = plaque.get("distance_km") or 0.0
+        plaque["distance_km"] = round(km, 1)
+        plaque["distance_mi"] = round(km / 1.609344, 1)
     return render_template(
         "listing.html",
         mode="nearby",
-        page_title= "Plaques near you — Read The Plaque",
-        paginator_url = None,
+        page_title="Plaques near you — Read The Plaque",
+        paginator_url=None,
         map_id="nearby-map",
         list_heading="Nearest first",
         lat=lat_f,
@@ -522,33 +232,16 @@ def nearby_gallery(lat, lng):
     )
 
 
-# ── Tag page ──────────────────────────────────────────────────────────────────
 @public_bp.route("/tag/<tag_name>")
 def tag_page(tag_name):
     tag_name = tag_name.strip().lower()
-    page = max(1, request.args.get("page", 1, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", 1, type=int), PER_PAGE)
     with get_db() as db:
-        tag = db.execute("SELECT * FROM tags WHERE name=?", (tag_name,)).fetchone()
-        if not tag:
-            abort(404)
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques p"
-            " JOIN plaque_tags pt ON pt.plaque_id = p.id"
-            " JOIN tags t ON t.id = pt.tag_id"
-            " WHERE t.name=? AND p.approved=1",
-            (tag_name,),
-        ).fetchone()[0]
-        rows = db.execute(
-            "SELECT p.* FROM plaques p"
-            " JOIN plaque_tags pt ON pt.plaque_id = p.id"
-            " JOIN tags t ON t.id = pt.tag_id"
-            " WHERE t.name=? AND p.approved=1 ORDER BY p.created_at DESC"
-            " LIMIT ? OFFSET ?",
-            (tag_name, PER_PAGE, offset),
-        ).fetchall()
-    plaques = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // PER_PAGE))
+        exists, total, rows = list_tag_page(
+            db, tag_name, limit=PER_PAGE, offset=offset
+        )
+    if not exists:
+        abort(404)
     return render_template(
         "listing.html",
         filter_type="tag",
@@ -558,33 +251,20 @@ def tag_page(tag_name):
         map_id="filter-map",
         list_heading="Plaques",
         name=tag_name,
-        plaques=plaques,
-        total=total,
-        page=page,
-        total_pages=total_pages,
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
 
-# ── Submitter page ────────────────────────────────────────────────────────────
 @public_bp.route("/submitter/<path:submitter_name>")
 def submitter_page(submitter_name):
     submitter_name = submitter_name.strip()
-    page = max(1, request.args.get("page", 1, type=int))
-    offset = (page - 1) * PER_PAGE
+    page, offset = paginate(request.args.get("page", 1, type=int), PER_PAGE)
     with get_db() as db:
-        total = db.execute(
-            "SELECT COUNT(*) FROM plaques WHERE approved=1 AND submitted_by=?",
-            (submitter_name,),
-        ).fetchone()[0]
-        if not total:
-            abort(404)
-        rows = db.execute(
-            "SELECT * FROM plaques WHERE approved=1 AND submitted_by=?"
-            " ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            (submitter_name, PER_PAGE, offset),
-        ).fetchall()
-    plaques = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // PER_PAGE))
+        total, rows = list_submitter_page(
+            db, submitter_name, limit=PER_PAGE, offset=offset
+        )
+    if not total:
+        abort(404)
     return render_template(
         "listing.html",
         filter_type="submitter",
@@ -594,22 +274,17 @@ def submitter_page(submitter_name):
         map_id="filter-map",
         list_heading="Plaques",
         name=submitter_name,
-        plaques=plaques,
-        total=total,
-        page=page,
-        total_pages=total_pages,
+        **paginated_rows_context(rows, total, page, PER_PAGE),
     )
 
 
-# ── Random, About, Counts ────────────────────────────────────────────────────────────
 @public_bp.route("/random")
 def random_plaque():
     with get_db() as db:
         rows = db.execute("SELECT slug FROM plaques WHERE approved=1").fetchall()
     if not rows:
         abort(404)
-    slug = random.choice(rows)["slug"]
-    return redirect(url_for("public.plaque_detail", slug=slug))
+    return redirect(url_for("public.plaque_detail", slug=random.choice(rows)["slug"]))
 
 
 @public_bp.route("/about")
@@ -620,23 +295,23 @@ def about():
 @public_bp.route("/counts")
 def counts():
     with get_db() as db:
-        pending = db.execute("SELECT count(*) FROM plaques WHERE approved = 0").fetchone()[0]
-        approved = db.execute("SELECT count(*) FROM plaques WHERE approved != 0").fetchone()[0]
+        pending = count_plaques(db, approved=False)
+        approved = count_plaques(db, approved=True)
     return f"Pending: {pending}; Approved: {approved}; Total: {pending + approved}"
 
 
-# ── File serving ──────────────────────────────────────────────────────────────
 @public_bp.route("/uploads/<path:filename>")
 def uploaded_file(filename):
-    fp = os.path.join(UPLOAD_DIR, filename)
-    if not os.path.exists(fp):
+    if not os.path.exists(os.path.join(UPLOAD_DIR, filename)):
         return _placeholder_jpeg(filename), 200, {"Content-Type": "image/jpeg"}
     return send_from_directory(UPLOAD_DIR, filename)
 
 
 @public_bp.route("/thumbs/<path:filename>")
 def thumb_file(filename):
-    fp = os.path.join(THUMB_DIR, filename)
-    if not os.path.exists(fp):
+    if not os.path.exists(os.path.join(THUMB_DIR, filename)):
         return _placeholder_jpeg(filename), 200, {"Content-Type": "image/jpeg"}
     return send_from_directory(THUMB_DIR, filename)
+
+
+register_submission_routes(public_bp)
