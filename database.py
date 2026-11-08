@@ -1,11 +1,13 @@
 """
 Read The Plaque — database helpers.
 
-Provides get_db() and init_db(). No Flask dependency — importable and
-testable without an app context.
+Provides get_db() and init_db(). get_db() uses the active Flask application's
+DATABASE setting when an app context exists, and DB_PATH otherwise.
 """
 
 import sqlite3
+
+from flask import current_app, has_app_context
 
 from config import DB_PATH
 
@@ -44,7 +46,12 @@ class _ManagedConnection:
 
 def get_db() -> _ManagedConnection:
     """Open and return a managed SQLite database connection."""
-    conn = sqlite3.connect(DB_PATH)
+    db_path = (
+        current_app.config.get("DATABASE", DB_PATH)
+        if has_app_context()
+        else DB_PATH
+    )
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")  # better concurrency
     conn.execute("PRAGMA foreign_keys=ON")
