@@ -48,6 +48,8 @@ THUMB_DIR = os.environ.get("THUMB_DIR", os.path.join(DATA_DIR, "thumbs"))
 THUMB_SIZE = (400, 300)
 ALLOWED_EXT = {"png", "jpg", "jpeg", "gif", "webp"}
 MAX_FILE_MB = _env_int("MAX_FILE_MB", 16)
+# Reject images whose decoded pixel count could consume excessive memory.
+MAX_IMAGE_PIXELS = _env_int("MAX_IMAGE_PIXELS", 40_000_000)
 MAX_UPLOAD_MB = _env_int("MAX_UPLOAD_MB", 100)
 
 # ── App behaviour ─────────────────────────────────────────────────────────────
