@@ -1,8 +1,8 @@
 """
 Read The Plaque — model helpers.
 
-Pure helper functions for images, tags, and HTML sanitisation.
-No Flask dependency — importable and testable without an app context.
+Helper functions for images, tags, and HTML sanitisation.
+Image storage paths use Flask app configuration when an app context is active.
 """
 
 import hashlib
