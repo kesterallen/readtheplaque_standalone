@@ -8,7 +8,7 @@
 <!-- Hero: featured plaque + map side by side -->
 <section class="index-hero">
   {% if featured %}
-  <a href="/plaque/{{ featured.slug }}" class="index-featured">
+  <a href="{{ url_for('public.plaque_detail', slug=featured.slug) }}" class="index-featured">
     <div class="index-featured-body">
       <p class="featured-label">Featured Plaque</p>
       <h2>{{ featured.title }}</h2>
@@ -26,7 +26,7 @@
 
   <div class="index-map-panel">
     <div class="index-map-header">
-      The page's plaques (<a href="/map">explore the entire big map</a>):
+      The page's plaques (<a href="{{ url_for('public.map_view') }}">explore the entire big map</a>):
     </div>
     {{ plaque_map("home-map", ([featured] if featured else []) + recent, height="100%") }}
   </div>
@@ -49,7 +49,7 @@
   </div>
   <div class="plaque-grid">
     {% for p in recent %}
-    <a href="/plaque/{{ p.slug }}" class="plaque-card">
+    <a href="{{ url_for('public.plaque_detail', slug=p.slug) }}" class="plaque-card">
       <div class="card-img-wrap">
         <img src="{{ p.thumb_url }}" alt="{{ p.title }}" loading="lazy">
       </div>
@@ -59,7 +59,7 @@
   </div>
 </section>
 
-{{ paginator(page, total_pages, "/?") }}
+{{ paginator(page, total_pages, url_for('public.index') + '?') }}
 
 {% endblock %}
 
@@ -72,7 +72,7 @@ let timer;
 
 input.addEventListener('keydown', e => {
   if (e.key === 'Enter' && input.value.trim()) {
-    window.location.href = '/search?q=' + encodeURIComponent(input.value.trim());
+    window.location.href = '{{ url_for('public.search_page') }}?q=' + encodeURIComponent(input.value.trim());
   }
 });
 
@@ -95,7 +95,7 @@ function positionOverlay() {
 }
 
 async function doSearch(q) {
-  const data = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then(r => r.json());
+  const data = await fetch(`{{ url_for('api.search') }}?q=${encodeURIComponent(q)}`).then(r => r.json());
   if (!data.length) {
     overlay.innerHTML = `<div class="sr-empty">No plaques found for "<em>${esc(q)}</em>"</div>`;
   } else {
