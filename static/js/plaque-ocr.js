@@ -36,6 +36,7 @@
       button.textContent = 'Recognizing…';
       if (cancelButton) cancelButton.style.display = 'inline-block';
 
+      let thisWorker = null;
       try {
         const source = await options.getSource();
         if (!source) throw new Error('Choose or add a plaque image first.');
@@ -44,7 +45,7 @@
           throw new Error('OCR library did not load. Please reload the page and try again.');
         }
 
-        worker = await Tesseract.createWorker('eng', 1, {
+        thisWorker = await Tesseract.createWorker('eng', 1, {
           logger: function (message) {
             if (thisRun !== runId) return;
             if (message.status) {
@@ -54,8 +55,13 @@
             }
           }
         });
+        if (thisRun !== runId) {
+          await thisWorker.terminate();
+          return;
+        }
+        worker = thisWorker;
 
-        const result = await worker.recognize(source);
+        const result = await thisWorker.recognize(source);
         if (thisRun !== runId) return;
         recognizedText = (result.data.text || '').trim();
         if (!recognizedText) {
@@ -70,10 +76,9 @@
           setStatus(error && error.message ? error.message : 'OCR failed. Please try again.');
         }
       } finally {
-        if (worker && thisRun === runId) {
-          const oldWorker = worker;
-          worker = null;
-          await oldWorker.terminate();
+        if (thisWorker) {
+          if (worker === thisWorker) worker = null;
+          await thisWorker.terminate();
         }
         if (thisRun === runId) stopUi();
       }
