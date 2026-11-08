@@ -35,7 +35,7 @@
 
       <div class="form-group">
         <label for="description">Plaque Text</label>
-        <textarea id="description" name="description">{{ plaque.description or '' }}</textarea>
+        <textarea id="description" name="description" rows="60">{{ plaque.description or '' }}</textarea>
         <div class="form-group plaque-ocr-controls">
           <button type="button" class="btn-cancel" id="ocrRun">Recognize text from photo</button>
           <button type="button" class="btn-cancel" id="ocrCancel" style="display:none">Cancel OCR</button>
