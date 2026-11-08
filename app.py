@@ -10,7 +10,7 @@ import os
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from config import CARTO_API_KEY, DB_PATH, MAX_FILE_MB, MAX_UPLOAD_MB, SECRET_KEY, UPLOAD_DIR
+from config import CARTO_API_KEY, DB_PATH, MAX_FILE_MB, MAX_UPLOAD_MB, SECRET_KEY, THUMB_DIR, UPLOAD_DIR
 from database import init_db
 from routes import register_blueprints
 
@@ -28,6 +28,7 @@ def create_app(test_config=None):
         MAX_FILE_MB=MAX_FILE_MB,
         MAX_UPLOAD_MB=MAX_UPLOAD_MB,
         UPLOAD_FOLDER=UPLOAD_DIR,
+        THUMB_FOLDER=THUMB_DIR,
         DATABASE=DB_PATH,
     )
     if test_config:
