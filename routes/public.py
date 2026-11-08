@@ -4,7 +4,7 @@ import random
 import re
 from urllib.parse import quote
 
-from markupsafe import Markup, escape
+from markupsafe import Markup
 from flask import (
     Blueprint,
     abort,
@@ -18,7 +18,6 @@ from flask import (
 )
 
 from config import (
-    ALLOWED_EXT,
     HCAPTCHA_SITEKEY,
     MAX_FILE_MB,
     MAX_UPLOAD_MB,
@@ -29,6 +28,8 @@ from config import (
     UPLOAD_DIR,
 )
 from routes.api import _get_closest_plaques
+from services.images import cleanup_saved_images, save_images
+from services.submissions import create_submission
 from spam import (
     check_content,
     check_honeypot,
@@ -39,24 +40,17 @@ from spam import (
 from database import get_db
 from models import (
     _placeholder_jpeg,
-    add_image_to_plaque,
     get_images_for_plaque,
     get_tags_for_plaque,
     image_url,
-    make_or_update_slug,
-    make_thumbnail,
-    new_image_filename,
-    new_thumb_filename,
     parse_tags,
     plaque_to_dict,
     sanitise_description,
-    set_tags_for_plaque,
     path_to_lat_lng_zoom,
     subdir_path,
     thumb_url,
 )
 
-import hashlib
 import os
 
 public_bp = Blueprint("public", __name__)
@@ -193,13 +187,14 @@ def submit():
         errors.append(content_err)
 
     image_files = request.files.getlist("images")
-    saved_images, img_errors = _save_images(image_files)
+    saved_images, img_errors = save_images(image_files)
     errors.extend(img_errors)
 
-    if not saved_images:
-        return jsonify({"ok": False, "errors": errors or ["No images could be saved."]}), 400
-    if errors:
-        return jsonify({"ok": False, "errors": errors}), 400
+    if not saved_images or errors:
+        cleanup_saved_images(saved_images)
+        return jsonify(
+            {"ok": False, "errors": errors or ["No images could be saved."]}
+        ), 400
 
     # created_at / updated_at let the admin-run importer keep a plaque's original
     # dates. Anonymous visitors must not set them: a future date would pin their
@@ -210,142 +205,24 @@ def submit():
     else:
         created_at = updated_at = None
 
-    plaque_id, slug = _insert_plaque_rows(
-        title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
-    )
-    with get_db() as db:
-        set_tags_for_plaque(db, plaque_id, tag_names)
+    try:
+        plaque_id, slug = create_submission(
+            title=title,
+            description=description,
+            latitude=lat,
+            longitude=lng,
+            submitted_by=submitted_by,
+            created_at=created_at,
+            updated_at=updated_at,
+            saved_images=saved_images,
+            tag_names=tag_names,
+        )
+    except Exception:
+        cleanup_saved_images(saved_images)
+        raise
 
     resp = {"ok": True, "slug": slug, "pending": True, "lat": lat, "lng": lng}
     return jsonify(resp)
-
-
-def _save_images(image_files: list) -> tuple[list[dict], list[str]]:
-    saved_images: list[dict] = []
-    errors: list[str] = []
-
-    image_files = [f for f in image_files if f and f.filename]
-    if not image_files:
-        errors.append("At least one image is required.")
-        return saved_images, errors
-
-    for f in image_files:
-        ext = f.filename.rsplit(".", 1)[-1].lower()
-        if ext not in ALLOWED_EXT:
-            errors.append(f"'{escape(f.filename)}': allowed types are {', '.join(ALLOWED_EXT)}")
-        f.stream.seek(0, os.SEEK_END)
-        size = f.stream.tell()
-        f.stream.seek(0)
-        if size > MAX_FILE_MB * 1024 * 1024:
-            errors.append(
-                f"'{escape(f.filename)}' is {size / 1048576:.1f} MB; "
-                f"the limit is {MAX_FILE_MB} MB per photo."
-            )
-
-    if errors:
-        return saved_images, errors
-
-    for image_file in image_files:
-        ext = image_file.filename.rsplit(".", 1)[-1].lower()
-        data = image_file.read()
-        image_hash = hashlib.sha256(data).hexdigest()
-
-        # Verify uniqueness of image_hash (prevent dup images):
-        with get_db() as db:
-            duplicate_plaque = db.execute(
-                "SELECT p.title AS title, p.slug AS slug "
-                "FROM plaque_images pi "
-                "JOIN  plaques p ON pi.plaque_id = p.id "
-                "WHERE pi.image_hash=?", (image_hash,),
-            ).fetchone()
-            if duplicate_plaque:
-                errors.append(
-                    f"Image {escape(image_file.filename)} is a duplicate of "
-                    f'<a href="/plaque/{escape(duplicate_plaque["slug"])}">'
-                    f'{escape(duplicate_plaque["title"])}</a>.'
-                )
-                continue
-        
-        filename = new_image_filename(ext)
-        with open(subdir_path(UPLOAD_DIR, filename), "wb") as fh:
-            fh.write(data)
-        thumb_filename = new_thumb_filename()
-        thumb_ok = make_thumbnail(filename, thumb_filename)
-        saved_images.append(
-            {
-                "filename": filename,
-                "thumb": thumb_filename if thumb_ok else None,
-                "hash": image_hash,
-                "original_name": image_file.filename,
-            }
-        )
-    return saved_images, errors
-
-
-def _insert_plaque_rows(
-    title, description, lat, lng, submitted_by, created_at, updated_at, saved_images
-) -> tuple[int, str]:
-    with get_db() as db:
-        primary = saved_images[0]
-        slug = make_or_update_slug(db, title)
-
-        # Build column list and values dynamically for optional fields
-        cols = [
-            "slug",
-            "title",
-            "description",
-            "latitude",
-            "longitude",
-            "image_file",
-            "thumb_file",
-            "submitted_by",
-            "approved",
-        ]
-        vals = [
-            slug,
-            title,
-            description,
-            lat,
-            lng,
-            primary["filename"],
-            primary["thumb"],
-            submitted_by,
-            0,
-        ]
-        if created_at is not None:
-            cols.append("created_at")
-            vals.append(created_at)
-        if updated_at is not None:
-            cols.append("updated_at")
-            vals.append(updated_at)
-
-        placeholders = ", ".join("?" * len(cols))
-
-        db.execute(
-            f"INSERT INTO plaques ({', '.join(cols)}) VALUES ({placeholders})", vals
-        )
-        plaque_id = db.execute(
-            "SELECT id FROM plaques WHERE slug=?", (slug,)
-        ).fetchone()["id"]
-
-        saved = 0
-        for i, img in enumerate(saved_images):
-            db.execute(
-                "INSERT INTO plaque_images"
-                " (plaque_id, image_file, thumb_file, image_hash, is_primary, sort_order)"
-                " VALUES (?,?,?,?,?,?)",
-                (
-                    plaque_id,
-                    img["filename"],
-                    img["thumb"],
-                    img["hash"],
-                    1 if saved == 0 else 0,
-                    i,
-                ),
-            )
-            saved += 1
-
-    return plaque_id, slug
 
 
 # ── Plaque detail ─────────────────────────────────────────────────────────────
