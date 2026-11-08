@@ -133,7 +133,7 @@ def submit():
     if request.method == "GET":
         return render_template(
             "submit.html",
-            hcaptcha_sitekey=HCAPTCHA_SITEKEY,
+            #hcaptcha_sitekey=HCAPTCHA_SITEKEY, # TODO: turn this on for hcaptcha
             honeypot_field=HONEYPOT_FIELD,
             max_file_mb=MAX_FILE_MB,
             max_upload_mb=MAX_UPLOAD_MB,
@@ -156,11 +156,12 @@ def submit():
     if not rate_ok:
         return jsonify({"ok": False, "errors": [rate_err]}), 429
 
-    # hCaptcha
-    captcha_token = request.form.get("h-captcha-response", "")
-    captcha_ok, captcha_err = verify_captcha(captcha_token)
-    if not captcha_ok:
-        return jsonify({"ok": False, "errors": [captcha_err]}), 400
+    # TODO: turn this on for hcaptcha
+    ## hCaptcha
+    #captcha_token = request.form.get("h-captcha-response", "")
+    #captcha_ok, captcha_err = verify_captcha(captcha_token)
+    #if not captcha_ok:
+    #    return jsonify({"ok": False, "errors": [captcha_err]}), 400
 
     errors = []
     title = request.form.get("title", "").strip()

@@ -314,6 +314,16 @@ def edit(plaque_id):
         url = url_for("admin.queue")
     return redirect(url)
 
+@admin_bp.route("/edit/no-text", methods=["GET"])
+def edit_no_text():
+    if not is_admin():
+        return redirect(url_for("admin.login"))
+
+    with get_db() as db:
+        row = db.execute("SELECT * FROM plaques WHERE description IS NULL OR description = '' ORDER BY random() LIMIT 1").fetchone()
+        if not row:
+            abort(404)
+        return redirect(url_for("admin.edit", plaque_id=row["id"]))
 
 # ── Rotate ─────────────────────────────────────────────────────────────────────
 @admin_bp.route("/rotate/<int:plaque_id>", methods=["POST"])
