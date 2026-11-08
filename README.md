@@ -36,14 +36,9 @@ Read The Plaque is a Flask-based crowdsourced map of historical plaques and memo
 ## Quick start
 
 ```bash
-# 1. Create a virtualenv if you want one
 python -m venv .venv
 source .venv/bin/activate
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Run the app
+python -m pip install -r requirements.txt
 python app.py
 ```
 
@@ -58,7 +53,7 @@ Core settings live in `config.py` and can be overridden with environment variabl
 - `ADMIN_PASSWORD` — admin login password
 - `SECRET_KEY` — Flask session secret
 - `CARTO_API_KEY` — map tile configuration
-- `SITE_URL` — canonical site URL for share previews
+- `SITE_URL` — canonical URL for share previews
 - `HCAPTCHA_SITEKEY` / `HCAPTCHA_SECRET` — bot protection
 - `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` — submission throttling
 
@@ -66,37 +61,20 @@ Core settings live in `config.py` and can be overridden with environment variabl
 
 ```text
 .
-├── app.py                  # Flask app entry point
-├── config.py               # app configuration and constants
-├── database.py             # SQLite connection + schema initialization
-├── models.py               # image, tag, slug, and sanitization helpers
+├── app.py
+├── config.py
+├── database.py
+├── models.py
 ├── requirements.txt
 ├── routes/
-│   ├── __init__.py
-│   ├── admin.py            # admin login, moderation, image management
-│   ├── api.py              # JSON endpoints for GeoJSON/search/nearby
-│   └── public.py           # public pages and submission handling
 ├── scripts/
-│   ├── approve_all.py
-│   ├── backup_sqlite_db.py
-│   ├── copy_from_rtp.py
-│   ├── file_upload.py
-│   ├── fix_thumb_rotation.py
-│   └── seed_db.py
 ├── static/
-│   ├── css/
-│   ├── images/
-│   └── audio/
 ├── templates/
-│   ├── admin_*.html
-│   ├── base.html
-│   ├── detail.html
-│   ├── index.html
-│   ├── map.html
-│   └── submit.html
-├── README.md
 └── tests/
-    └── test_models.py
+    ├── test_api_routes.py
+    ├── test_database.py
+    ├── test_models.py
+    └── test_submissions.py
 ```
 
 ## API endpoints
@@ -107,37 +85,19 @@ Core settings live in `config.py` and can be overridden with environment variabl
 | GET | `/api/plaques/geo` | Lightweight GeoJSON for map pins |
 | GET | `/api/search?q=` | Search approved plaques |
 | GET | `/api/nearby/<lat>/<lng>` | Nearby plaques from a coordinate pair |
-| GET | `/api/plaques/<id>` | Single plaque by ID |
+| GET | `/api/plaques/<id>` | Single approved plaque by ID |
 | POST | `/submit` | Submit a plaque and images |
 
-### Submit form fields
+## Tests
 
-| Field | Type | Required |
-|-------|------|----------|
-| title | text | yes |
-| images | file(s) | yes |
-| latitude | number | yes |
-| longitude | number | yes |
-| description | text | optional |
-| submitted_by | text | optional |
-| tags | text | optional |
-
-## Local testing
-
-Minimal baseline coverage is included using the standard library `unittest` runner:
+The test suite uses Python's standard-library `unittest` framework and a temporary SQLite database. Run it with:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
+GitHub Actions runs the same command on pushes and pull requests.
+
 ## Deployment
 
-For production, the project is intended to run behind Gunicorn and a reverse proxy, for example:
-
-```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:8000 app:app
-```
-
-For Fly.io or similar hosts, the app stores uploads and the database under `/data` so they persist across deployments.
-
+The project runs behind Gunicorn. For Fly.io, the app stores uploads and the database under `/data` so they persist across deployments.
