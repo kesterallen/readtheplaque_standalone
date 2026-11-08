@@ -190,7 +190,7 @@ insertOcrBtn.addEventListener('click', () => {
   if (!recognizedText) return;
   const description = document.getElementById('description');
   description.value = description.value.trim()
-    ? description.value.trimEnd() + '\\n\\n' + recognizedText
+    ? description.value.trimEnd() + '\n\n' + recognizedText
     : recognizedText;
   description.focus();
   insertOcrBtn.style.display = 'none';
