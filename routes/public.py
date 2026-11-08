@@ -58,9 +58,9 @@ public_bp = Blueprint("public", __name__)
 
 # ── Homepage ───────────────────────────────────────────────────────────────────
 @public_bp.route("/")
-@public_bp.route("/page/<int:page>") # TODO: make this route work
+@public_bp.route("/page/<int:page>")
 def index(page=1):
-    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work, this'll need to get skipped if page is specified in the route
+    page = max(1, request.args.get("page", page, type=int)) 
     offset = (page - 1) * PER_PAGE
 
     with get_db() as db:
