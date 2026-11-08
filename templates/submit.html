@@ -24,6 +24,11 @@
     <div class="form-group">
       <label for="description">Plaque Text (optional)</label>
       <textarea id="description" placeholder="Transcribe the text from the plaque…"></textarea>
+      <div id="ocrControls" style="display:none;margin-top:8px">
+        <p id="ocrStatus" class="field-hint" role="status" aria-live="polite"></p>
+        <button type="button" id="cancelOcrBtn" class="btn-secondary" style="display:none">Cancel OCR</button>
+        <button type="button" id="insertOcrBtn" class="btn-secondary" style="display:none">Insert recognized text</button>
+      </div>
     </div>
     <div class="form-group">
       <label for="submittedBy">Your Name (optional)</label>
@@ -91,6 +96,7 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
 // ── Drop zone + EXIF read (via exifr) ───────────────────────────────────────
 const dz         = document.getElementById('dropZone');
@@ -98,6 +104,98 @@ const fileInput  = document.getElementById('imageFile');
 const preview    = document.getElementById('imgPreview');
 const previewWrap= document.getElementById('imgPreviewWrap');
 const gpsBadge   = document.getElementById('gpsBadge');
+
+// ── OCR (Tesseract.js, runs locally in the browser) ──────────────────────────
+const ocrControls = document.getElementById('ocrControls');
+const ocrStatus = document.getElementById('ocrStatus');
+const cancelOcrBtn = document.getElementById('cancelOcrBtn');
+const insertOcrBtn = document.getElementById('insertOcrBtn');
+let ocrWorker = null;
+let ocrRun = 0;
+let recognizedText = '';
+
+async function cancelOcr(showMessage = true) {
+  // Invalidate callbacks before terminating the worker.
+  ocrRun++;
+  const worker = ocrWorker;
+  ocrWorker = null;
+  if (worker) {
+    try { await worker.terminate(); } catch (_) {}
+  }
+  cancelOcrBtn.style.display = 'none';
+  if (showMessage) ocrStatus.textContent = 'OCR cancelled.';
+}
+
+async function startOcr(file) {
+  await cancelOcr(false);
+  const thisRun = ocrRun;
+  recognizedText = '';
+  insertOcrBtn.style.display = 'none';
+  ocrControls.style.display = 'block';
+  cancelOcrBtn.style.display = 'inline-block';
+  ocrStatus.textContent = 'Starting text recognition…';
+
+  if (!window.Tesseract) {
+    ocrStatus.textContent = 'OCR could not load. Check your connection and reload the page.';
+    cancelOcrBtn.style.display = 'none';
+    return;
+  }
+
+  try {
+    const worker = await Tesseract.createWorker('eng', 1, {
+      logger: message => {
+        if (thisRun !== ocrRun) return;
+        if (message.status === 'recognizing text') {
+          ocrStatus.textContent = 'Reading plaque text… ' +
+            Math.round((message.progress || 0) * 100) + '%';
+        } else if (message.status) {
+          ocrStatus.textContent = 'OCR: ' + message.status + '…';
+        }
+      }
+    });
+    if (thisRun !== ocrRun) {
+      await worker.terminate();
+      return;
+    }
+    ocrWorker = worker;
+
+    const result = await worker.recognize(file);
+    if (thisRun !== ocrRun) return;
+
+    recognizedText = (result.data.text || '').trim();
+    if (recognizedText) {
+      ocrStatus.textContent = 'Text recognized. Review it, then insert it into Plaque Text.';
+      insertOcrBtn.style.display = 'inline-block';
+    } else {
+      ocrStatus.textContent = 'No text was detected. Try a clearer, closer photo.';
+    }
+    await worker.terminate();
+    if (ocrWorker === worker) ocrWorker = null;
+    cancelOcrBtn.style.display = 'none';
+  } catch (error) {
+    if (thisRun === ocrRun) {
+      console.error('OCR failed:', error);
+      ocrStatus.textContent = 'OCR failed. You can still enter the plaque text manually.';
+      cancelOcrBtn.style.display = 'none';
+      if (ocrWorker) {
+        try { await ocrWorker.terminate(); } catch (_) {}
+        ocrWorker = null;
+      }
+    }
+  }
+}
+
+cancelOcrBtn.addEventListener('click', () => cancelOcr(true));
+insertOcrBtn.addEventListener('click', () => {
+  if (!recognizedText) return;
+  const description = document.getElementById('description');
+  description.value = description.value.trim()
+    ? description.value.trimEnd() + '\\n\\n' + recognizedText
+    : recognizedText;
+  description.focus();
+  insertOcrBtn.style.display = 'none';
+  ocrStatus.textContent = 'Recognized text inserted. Please proofread it.';
+});
 
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
 dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
@@ -108,6 +206,8 @@ dz.addEventListener('drop', e => {
 fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFiles(fileInput.files); });
 
 function handleFiles(files) {
+  if (files[0]) startOcr(files[0]);
+  else cancelOcr(false);
   previewWrap.innerHTML = '';
   Array.from(files).forEach(function(file, i) {
     const reader = new FileReader();
@@ -390,6 +490,11 @@ function clearForm() {
   previewWrap.innerHTML = '';
   previewWrap.style.display = 'none';
   fileInput.value = '';
+  cancelOcr(false);
+  ocrControls.style.display = 'none';
+  ocrStatus.textContent = '';
+  insertOcrBtn.style.display = 'none';
+  recognizedText = '';
 
   // Map marker and coords
   if (pickerMarker) { pickerMarker.remove(); pickerMarker = null; }
