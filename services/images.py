@@ -1,12 +1,15 @@
 """Image upload helpers used by plaque submission workflows."""
 
 import hashlib
+import io
 import os
+import warnings
 
 from flask import current_app, has_app_context
 from markupsafe import escape
+from PIL import Image, UnidentifiedImageError
 
-from config import ALLOWED_EXT, MAX_FILE_MB, THUMB_DIR, UPLOAD_DIR
+from config import ALLOWED_EXT, MAX_FILE_MB, MAX_IMAGE_PIXELS
 from database import get_db
 import models
 from models import make_thumbnail, new_image_filename, new_thumb_filename, subdir_path
@@ -14,6 +17,38 @@ from models import make_thumbnail, new_image_filename, new_thumb_filename, subdi
 
 def _setting(name: str, default):
     return current_app.config.get(name, default) if has_app_context() else default
+
+
+def _validate_image(data: bytes, max_pixels: int) -> str | None:
+    """Return an error message unless data is a complete, reasonably sized image."""
+    try:
+        # Treat Pillow's decompression-bomb warning as a hard failure as well as
+        # enforcing our own, usually lower, application-level pixel limit.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                width, height = image.size
+                if width <= 0 or height <= 0 or width * height > max_pixels:
+                    return (
+                        f"image dimensions are too large ({width} × {height}); "
+                        f"the limit is {max_pixels:,} pixels"
+                    )
+                image.verify()
+
+            # verify() checks the file structure but does not fully decode pixels.
+            # Reopen and load to reject truncated or otherwise corrupt image data.
+            with Image.open(io.BytesIO(data)) as image:
+                width, height = image.size
+                if width * height > max_pixels:
+                    return (
+                        f"image dimensions are too large ({width} × {height}); "
+                        f"the limit is {max_pixels:,} pixels"
+                    )
+                image.load()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError,
+            Image.DecompressionBombWarning):
+        return "file is not a valid, complete image"
+    return None
 
 
 def save_images(image_files: list) -> tuple[list[dict], list[str]]:
@@ -26,13 +61,14 @@ def save_images(image_files: list) -> tuple[list[dict], list[str]]:
     errors: list[str] = []
     allowed_ext = _setting("ALLOWED_EXT", ALLOWED_EXT)
     max_file_mb = _setting("MAX_FILE_MB", MAX_FILE_MB)
+    max_image_pixels = _setting("MAX_IMAGE_PIXELS", MAX_IMAGE_PIXELS)
     upload_dir = _setting("UPLOAD_FOLDER", models.UPLOAD_DIR)
-    thumb_dir = _setting("THUMB_FOLDER", models.THUMB_DIR)
 
     image_files = [file for file in image_files if file and file.filename]
     if not image_files:
         return saved_images, ["At least one image is required."]
 
+    validated_files: list[tuple[object, str, bytes]] = []
     for image_file in image_files:
         ext = image_file.filename.rsplit(".", 1)[-1].lower()
         if ext not in allowed_ext:
@@ -40,6 +76,7 @@ def save_images(image_files: list) -> tuple[list[dict], list[str]]:
                 f"'{escape(image_file.filename)}': allowed types are "
                 f"{', '.join(sorted(allowed_ext))}"
             )
+            continue
 
         image_file.stream.seek(0, os.SEEK_END)
         size = image_file.stream.tell()
@@ -49,13 +86,21 @@ def save_images(image_files: list) -> tuple[list[dict], list[str]]:
                 f"'{escape(image_file.filename)}' is {size / 1048576:.1f} MB; "
                 f"the limit is {max_file_mb} MB per photo."
             )
+            continue
 
+        data = image_file.read()
+        image_file.stream.seek(0)
+        image_error = _validate_image(data, max_image_pixels)
+        if image_error:
+            errors.append(f"'{escape(image_file.filename)}': {image_error}.")
+            continue
+        validated_files.append((image_file, ext, data))
+
+    # Reject the whole upload before writing any files if any image is invalid.
     if errors:
         return saved_images, errors
 
-    for image_file in image_files:
-        ext = image_file.filename.rsplit(".", 1)[-1].lower()
-        data = image_file.read()
+    for image_file, ext, data in validated_files:
         image_hash = hashlib.sha256(data).hexdigest()
 
         with get_db() as db:
