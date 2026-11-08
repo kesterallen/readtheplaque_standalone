@@ -8,6 +8,7 @@ from markupsafe import escape
 
 from config import ALLOWED_EXT, MAX_FILE_MB, THUMB_DIR, UPLOAD_DIR
 from database import get_db
+import models
 from models import make_thumbnail, new_image_filename, new_thumb_filename, subdir_path
 
 
@@ -25,8 +26,8 @@ def save_images(image_files: list) -> tuple[list[dict], list[str]]:
     errors: list[str] = []
     allowed_ext = _setting("ALLOWED_EXT", ALLOWED_EXT)
     max_file_mb = _setting("MAX_FILE_MB", MAX_FILE_MB)
-    upload_dir = _setting("UPLOAD_FOLDER", UPLOAD_DIR)
-    thumb_dir = _setting("THUMB_FOLDER", THUMB_DIR)
+    upload_dir = _setting("UPLOAD_FOLDER", models.UPLOAD_DIR)
+    thumb_dir = _setting("THUMB_FOLDER", models.THUMB_DIR)
 
     image_files = [file for file in image_files if file and file.filename]
     if not image_files:
@@ -94,8 +95,8 @@ def save_images(image_files: list) -> tuple[list[dict], list[str]]:
 
 def cleanup_saved_images(saved_images: list[dict]) -> None:
     """Remove upload and thumbnail files when a submission cannot be saved."""
-    upload_dir = _setting("UPLOAD_FOLDER", UPLOAD_DIR)
-    thumb_dir = _setting("THUMB_FOLDER", THUMB_DIR)
+    upload_dir = _setting("UPLOAD_FOLDER", models.UPLOAD_DIR)
+    thumb_dir = _setting("THUMB_FOLDER", models.THUMB_DIR)
     for saved_image in saved_images:
         paths = [(upload_dir, saved_image.get("filename"))]
         if saved_image.get("thumb"):
