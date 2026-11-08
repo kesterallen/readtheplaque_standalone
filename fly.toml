@@ -7,6 +7,12 @@ primary_region = "iad"
   PORT = "8080"
 
 [http_service]
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
   internal_port = 8080
   force_https = true
   auto_stop_machines = "stop"
