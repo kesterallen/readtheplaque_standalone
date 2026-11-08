@@ -3,6 +3,9 @@
 import datetime
 import os
 import random
+import secrets
+
+from werkzeug.security import check_password_hash
 
 from flask import (
     Blueprint,
@@ -16,7 +19,7 @@ from flask import (
 )
 from PIL import Image
 
-from config import ADMIN_PASSWORD, ALLOWED_EXT, PER_PAGE, THUMB_DIR, UPLOAD_DIR
+from config import ADMIN_PASSWORD, ADMIN_PASSWORD_HASH, ALLOWED_EXT, PER_PAGE, THUMB_DIR, UPLOAD_DIR
 from database import get_db
 from models import (
     add_image_to_plaque,
@@ -47,14 +50,25 @@ def is_admin() -> bool:
 def login():
     error = None
     if request.method == "POST":
-        if request.form.get("password") == ADMIN_PASSWORD:
+        password = request.form.get("password", "")
+        authenticated = False
+        if ADMIN_PASSWORD_HASH:
+            try:
+                authenticated = check_password_hash(ADMIN_PASSWORD_HASH, password)
+            except (ValueError, TypeError):
+                authenticated = False
+        elif ADMIN_PASSWORD:
+            authenticated = secrets.compare_digest(password, ADMIN_PASSWORD)
+
+        if authenticated:
+            session.clear()
             session["admin"] = True
             return redirect(url_for("admin.queue"))
         error = "Incorrect password."
     return render_template("admin_login.html", error=error)
 
 
-@admin_bp.route("/logout")
+@admin_bp.route("/logout", methods=["POST"])
 def logout():
     session.clear()
     return redirect(url_for("public.index"))
