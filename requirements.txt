@@ -1,6 +1,7 @@
-flask>=3.0.0
-werkzeug>=3.0.0
-Pillow>=10.0.0
-gunicorn>=21.0.0
-bleach>=6.0.0
-bs4
+# Runtime dependencies (Python 3.12; exact versions for repeatable deploys)
+Flask==3.1.3
+Werkzeug==3.1.9
+Pillow==13.0.0
+gunicorn==26.2.0
+bleach==6.4.0
+beautifulsoup4==4.15.0
