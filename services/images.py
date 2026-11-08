@@ -7,7 +7,7 @@ import warnings
 
 from flask import current_app, has_app_context
 from markupsafe import escape
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from config import ALLOWED_EXT, MAX_FILE_MB, MAX_IMAGE_PIXELS
 from database import get_db
@@ -45,8 +45,9 @@ def _validate_image(data: bytes, max_pixels: int) -> str | None:
                         f"the limit is {max_pixels:,} pixels"
                     )
                 image.load()
-    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError,
-            Image.DecompressionBombWarning):
+    except Exception:
+        # Pillow raises several format-specific exceptions for malformed or
+        # truncated files; none should escape the upload validation boundary.
         return "file is not a valid, complete image"
     return None
 
