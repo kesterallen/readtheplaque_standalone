@@ -13,6 +13,8 @@ import sqlite3
 import uuid
 from typing import Optional
 
+from flask import current_app, has_app_context
+
 import bleach
 from PIL import Image, ImageOps
 
@@ -45,6 +47,13 @@ def new_thumb_filename() -> str:
 
 
 # ── Thumbnail helpers ──────────────────────────────────────────────────────────
+def _configured_path(setting: str, default: str) -> str:
+    """Use the active app's storage path when running inside a Flask request."""
+    if has_app_context():
+        return current_app.config.get(setting, default)
+    return default
+
+
 def _save_thumbnail(img: Image.Image, thumb_filename: str) -> Optional[str]:
     """Cover-crop img to THUMB_SIZE and save as JPEG. Returns filename or None.
 
@@ -61,7 +70,7 @@ def _save_thumbnail(img: Image.Image, thumb_filename: str) -> Optional[str]:
         img.draft("RGB", (side, side))
         img = ImageOps.exif_transpose(img)
         ImageOps.fit(img.convert("RGB"), THUMB_SIZE, Image.LANCZOS).save(
-            subdir_path(THUMB_DIR, thumb_filename), "JPEG", quality=82, optimize=True
+            subdir_path(_configured_path("THUMB_FOLDER", THUMB_DIR), thumb_filename), "JPEG", quality=82, optimize=True
         )
         return thumb_filename
     except Exception:
@@ -71,7 +80,7 @@ def _save_thumbnail(img: Image.Image, thumb_filename: str) -> Optional[str]:
 def make_thumbnail(image_filename: str, thumb_filename: str) -> Optional[str]:
     """Create thumbnail from a saved upload file. image_filename is relative."""
     try:
-        with Image.open(subdir_path(UPLOAD_DIR, image_filename)) as img:
+        with Image.open(subdir_path(_configured_path("UPLOAD_FOLDER", UPLOAD_DIR), image_filename)) as img:
             return _save_thumbnail(img, thumb_filename)
     except Exception:
         return None
