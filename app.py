@@ -1,16 +1,35 @@
 """
-Read The Plaque — application entry point.
-
-create_app() builds a configured Flask application. The module-level app keeps
-the conventional gunicorn app:app deployment command working.
+Read The Plaque — Flask application factory and WSGI entry point.
 """
 
 import os
+import secrets
 
 from flask import Flask, jsonify, render_template, request
+from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.security import check_password_hash
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
-from config import CARTO_API_KEY, DB_PATH, MAX_FILE_MB, MAX_UPLOAD_MB, SECRET_KEY, THUMB_DIR, UPLOAD_DIR
+from config import (
+    ADMIN_PASSWORD,
+    ADMIN_PASSWORD_HASH,
+    APP_ENV,
+    CARTO_API_KEY,
+    DB_PATH,
+    DEBUG,
+    IS_PRODUCTION,
+    MAX_CONTENT_LENGTH,
+    MAX_FILE_MB,
+    MAX_UPLOAD_MB,
+    SECRET_KEY,
+    SESSION_COOKIE_HTTPONLY,
+    SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_SECURE,
+    THUMB_DIR,
+    TRUSTED_HOSTS,
+    TRUST_PROXY_HEADERS,
+    UPLOAD_DIR,
+)
 from database import init_db
 from routes import register_blueprints
 
@@ -18,44 +37,72 @@ from routes import register_blueprints
 def create_app(test_config=None):
     """Create and configure the Flask application.
 
-    test_config can override DATABASE, UPLOAD_FOLDER, secrets, and other
-    Flask settings so tests can use isolated resources.
+    Pass DATABASE, UPLOAD_FOLDER, THUMB_FOLDER, and TESTING overrides through
+    test_config to isolate tests and local instances.
     """
     app = Flask(__name__)
     app.config.from_mapping(
-        SECRET_KEY=SECRET_KEY,
-        MAX_CONTENT_LENGTH=MAX_UPLOAD_MB * 1024 * 1024,
+        SECRET_KEY=SECRET_KEY or (None if IS_PRODUCTION else secrets.token_hex(32)),
+        MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
         MAX_FILE_MB=MAX_FILE_MB,
         MAX_UPLOAD_MB=MAX_UPLOAD_MB,
         UPLOAD_FOLDER=UPLOAD_DIR,
         THUMB_FOLDER=THUMB_DIR,
         DATABASE=DB_PATH,
+        SESSION_COOKIE_SECURE=SESSION_COOKIE_SECURE,
+        SESSION_COOKIE_HTTPONLY=SESSION_COOKIE_HTTPONLY,
+        SESSION_COOKIE_SAMESITE=SESSION_COOKIE_SAMESITE,
+        TRUSTED_HOSTS=TRUSTED_HOSTS or None,
     )
     if test_config:
         app.config.update(test_config)
 
+    if not app.config.get("SECRET_KEY"):
+        raise RuntimeError(
+            "SECRET_KEY must be set to a random, private value in production."
+        )
+
     app.json.compact = True
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    os.makedirs(app.config["THUMB_FOLDER"], exist_ok=True)
+
+    # Only enable ProxyFix when the app is behind a known, trusted proxy.
+    # Fly.io supplies one proxy hop; do not enable this on direct deployments.
+    if TRUST_PROXY_HEADERS:
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0)
+
     register_blueprints(app)
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
+        if request.is_secure:
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
+        return response
 
     @app.errorhandler(RequestEntityTooLarge)
     def upload_too_large(_error):
-        """Answer an oversized upload in a form the page can show (not Flask's HTML)."""
+        """Return an upload error in the JSON format used by the submit page."""
         message = (
-            f"That upload is too large. A submission can be up to {app.config['MAX_UPLOAD_MB']} MB in "
-            f"total ({app.config['MAX_FILE_MB']} MB per photo): please choose fewer or smaller photos."
+            f"That upload is too large. A submission can be up to {app.config['MAX_UPLOAD_MB']} MB "
+            f"in total ({app.config['MAX_FILE_MB']} MB per photo): "
+            "please choose fewer or smaller photos."
         )
         if request.path == "/submit" or request.path.startswith("/admin/images/"):
             return jsonify({"ok": False, "errors": [message], "error": message}), 413
         return message, 413
-    
-    
+
     @app.errorhandler(HTTPException)
     def handle_http_error(error):
         """Render friendly HTML for browser 4xx errors and JSON for API clients."""
         if not 400 <= error.code < 500:
             return error
-    
+
         titles = {
             400: "That request didn’t work",
             401: "Please sign in",
@@ -84,7 +131,7 @@ def create_app(test_config=None):
             422: "The information couldn’t be processed. Please check it and try again.",
             429: "Please wait a moment before trying again.",
         }
-    
+
         if request.path.startswith("/api/"):
             payload = {
                 "error": titles.get(error.code, "Request error"),
@@ -92,21 +139,19 @@ def create_app(test_config=None):
                 "status": error.code,
             }
             return jsonify(payload), error.code
-    
+
         return render_template(
             "error.html",
             status=error.code,
             title=titles.get(error.code, "Something went wrong"),
             message=messages.get(error.code, "We couldn’t complete that request. Please try again."),
         ), error.code
-    
-    
+
     @app.context_processor
     def inject_globals():
         return {"carto_api_key": CARTO_API_KEY}
 
-    # Initialise the database when an application instance is created, not
-    # merely because a module importing database helpers was loaded.
+    # Initialise the database after configuration is applied.
     with app.app_context():
         init_db()
 
@@ -117,4 +162,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=DEBUG, host="0.0.0.0", port=5000)
