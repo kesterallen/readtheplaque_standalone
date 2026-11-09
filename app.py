@@ -11,8 +11,6 @@ from werkzeug.security import check_password_hash
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from config import (
-    ADMIN_PASSWORD,
-    ADMIN_PASSWORD_HASH,
     APP_ENV,
     CARTO_API_KEY,
     DB_PATH,
