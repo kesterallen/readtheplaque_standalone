@@ -48,7 +48,7 @@
     <div class="drop-zone" id="dropZone">
       <input type="file" id="imageFile" name="images" accept="image/*" multiple>
       <div class="dz-icon">🏛️</div>
-      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · up to {{ max_file_mb }} MB per photo, {{ max_upload_mb }} MB in total · first image is primary</small></div>
+      <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · up to {{ max_file_mb }} MB per photo, {{ max_upload_mb }} MB in total · choose the primary image below</small></div>
     </div>
     <div id="imgPreviewWrap" class="img-preview-wrap"></div>
     <div id="gpsBadge">📡 GPS found in photo — coordinates filled in automatically</div>
@@ -128,33 +128,53 @@ dz.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFiles(fileInput.files); });
 
+let primaryImageIndex = 0;
+
 function handleFiles(files) {
+  const selectedFiles = Array.from(files);
+  primaryImageIndex = 0;
   previewWrap.innerHTML = '';
-  Array.from(files).forEach(function(file, i) {
+
+  selectedFiles.forEach(function(file, i) {
     const reader = new FileReader();
     reader.onload = e => {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'position:relative;display:inline-block';
+      wrap.className = 'submit-image-preview';
+      wrap.style.cssText = 'position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:6px;margin:0 8px 8px 0';
+
       const img = document.createElement('img');
       img.src = e.target.result;
-      img.style.cssText = 'height:120px;border-radius:6px;border:2px solid ' + (i===0 ? 'var(--amber)' : 'var(--border)');
-      img.title = i === 0 ? 'Primary image' : '';
-      if (i === 0) {
-        const badge = document.createElement('span');
-        badge.textContent = 'Primary';
-        badge.style.cssText = 'position:absolute;top:4px;left:4px;background:var(--amber);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px';
-        wrap.appendChild(badge);
-      }
+      img.style.cssText = 'height:120px;max-width:180px;object-fit:cover;border-radius:6px;border:2px solid var(--border)';
+      img.alt = 'Selected plaque image ' + (i + 1);
       wrap.appendChild(img);
+
+      const primaryBadge = document.createElement('span');
+      primaryBadge.className = 'submit-image-primary';
+      primaryBadge.textContent = 'Primary';
+      primaryBadge.style.cssText = 'display:none;background:var(--amber);color:#fff;font-size:11px;padding:3px 7px;border-radius:4px';
+      wrap.appendChild(primaryBadge);
+
+      const primaryButton = document.createElement('button');
+      primaryButton.type = 'button';
+      primaryButton.className = 'eg-btn';
+      primaryButton.textContent = '★ Set as primary';
+      primaryButton.style.cssText = 'font-size:12px;padding:4px 8px';
+      primaryButton.addEventListener('click', function() {
+        setPrimaryPreview(i);
+      });
+      wrap.appendChild(primaryButton);
+
       previewWrap.appendChild(wrap);
+      updatePrimaryPreview();
     };
     reader.readAsDataURL(file);
   });
-  previewWrap.style.display = files.length ? 'flex' : 'none';
+
+  previewWrap.style.display = selectedFiles.length ? 'flex' : 'none';
 
   // Extract GPS from first image only
-  if (files[0]) {
-    exifr.gps(files[0]).then(coords => {
+  if (selectedFiles[0]) {
+    exifr.gps(selectedFiles[0]).then(coords => {
       if (coords && coords.latitude != null && coords.longitude != null) {
         setCoords(coords.latitude, coords.longitude);
         gpsBadge.style.display = 'block';
@@ -163,6 +183,25 @@ function handleFiles(files) {
       }
     }).catch(() => { gpsBadge.style.display = 'none'; });
   }
+}
+
+function setPrimaryPreview(index) {
+  primaryImageIndex = index;
+  updatePrimaryPreview();
+}
+
+function updatePrimaryPreview() {
+  Array.from(previewWrap.children).forEach(function(wrap, index) {
+    const isPrimary = index === primaryImageIndex;
+    const img = wrap.querySelector('img');
+    const badge = wrap.querySelector('.submit-image-primary');
+    const button = wrap.querySelector('button');
+    img.style.borderColor = isPrimary ? 'var(--amber)' : 'var(--border)';
+    img.title = isPrimary ? 'Primary image' : '';
+    badge.style.display = isPrimary ? 'inline-block' : 'none';
+    button.textContent = isPrimary ? '★ Primary image' : '★ Set as primary';
+    button.disabled = isPrimary;
+  });
 }
 function handleFile(file) { handleFiles([file]); }
 
@@ -356,7 +395,12 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   if (sizeError) { showErrors([sizeError]); return; }
 
   const fd = new FormData();
-  Array.from(fileInput.files).forEach(f => fd.append('images', f));
+  const uploadFiles = Array.from(fileInput.files);
+  // The server treats the first uploaded image as primary.
+  if (uploadFiles.length && primaryImageIndex > 0) {
+    uploadFiles.unshift(uploadFiles.splice(primaryImageIndex, 1)[0]);
+  }
+  uploadFiles.forEach(f => fd.append('images', f));
   fd.append('title',        document.getElementById('title').value.trim());
   fd.append('description',  document.getElementById('description').value.trim());
   fd.append('submitted_by', document.getElementById('submittedBy').value.trim());
@@ -410,6 +454,7 @@ function clearForm() {
   // Image previews and file input
   previewWrap.innerHTML = '';
   previewWrap.style.display = 'none';
+  primaryImageIndex = 0;
   fileInput.value = '';
 
   // Map marker and coords
