@@ -74,13 +74,10 @@
       <!-- Existing images gallery -->
       <div class="edit-gallery" id="editGallery">
         {% for img in plaque.images %}
-        <div class="edit-gallery-item" id="gitem-{{ img.id }}">
+        <div class="edit-gallery-item" id="gitem-{{ img.id }}" data-image-item data-image-id="{{ img.id }}" data-is-primary="{% if img.is_primary %}true{% else %}false{% endif %}">
           <img src="{{ img.image_url }}" alt="">
-          {% if img.is_primary %}<span class="edit-gallery-primary">Primary</span>{% endif %}
-          <div class="edit-gallery-actions">
-            {% if not img.is_primary %}
-            <button type="button" class="eg-btn" onclick="setPrimary({{ img.id }})">★ Primary</button>
-            {% endif %}
+          <div class="edit-gallery-actions" data-image-actions>
+            <button type="button" class="eg-btn" data-set-primary data-image-id="{{ img.id }}">★ Primary</button>
             <button type="button" class="eg-btn eg-btn-rotate" onclick="rotateImg({{ img.id }}, this)">↻</button>
             <button type="button" class="eg-btn eg-btn-del" onclick="deleteImg({{ img.id }})">✕</button>
           </div>
@@ -124,6 +121,7 @@
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="{{ url_for('static', filename='js/plaque-ocr.js') }}"></script>
+<script src="{{ url_for('static', filename='js/image-primary.js') }}"></script>
 <script>
 // OCR uses a newly selected image if present; otherwise it uses the current primary image.
 initPlaqueOcr({
@@ -192,24 +190,29 @@ dz.addEventListener('drop', function(e) {
   }
 });
 
-// ── Gallery management ───────────────────────────────────────────────────────
-function setPrimary(imageId) {
-  fetch('/admin/images/' + imageId + '/set-primary', { method: 'POST' })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        document.querySelectorAll('.edit-gallery-primary').forEach(function(el) { el.remove(); });
-        document.querySelectorAll('[onclick*="setPrimary"]').forEach(function(btn) { btn.style.display = ''; });
-        var item = document.getElementById('gitem-' + imageId);
-        var badge = document.createElement('span');
-        badge.className = 'edit-gallery-primary';
-        badge.textContent = 'Primary';
-        item.insertBefore(badge, item.querySelector('.edit-gallery-actions'));
-        item.querySelector('[onclick*="setPrimary"]').style.display = 'none';
-      }
-    });
-}
+// ── Shared primary-image selection ───────────────────────────────────────────
+var editGallery = document.getElementById('editGallery');
+var initialPrimaryItem = editGallery.querySelector('[data-is-primary="true"]');
+var primaryController = createImagePrimaryController({
+  container: editGallery,
+  initialItem: initialPrimaryItem,
+  badgeClass: 'edit-gallery-primary',
+  badgeText: 'Primary',
+  buttonText: '★ Primary',
+  selectedButtonText: '★ Primary',
+  hideSelectedButton: true,
+  onSelect: function(item) {
+    var imageId = item.getAttribute('data-image-id');
+    return fetch('/admin/images/' + imageId + '/set-primary', { method: 'POST' })
+      .then(function(response) {
+        if (!response.ok) return false;
+        return response.json();
+      })
+      .then(function(data) { return !!(data && data.ok); });
+  }
+});
 
+// ── Gallery management ───────────────────────────────────────────────────────
 function rotateImg(imageId, btn) {
   btn.disabled = true;
   fetch('/admin/rotate/' + imageId + '?type=image', { method: 'POST' })
@@ -232,6 +235,7 @@ function deleteImg(imageId) {
     .then(function(d) {
       if (d.ok) {
         document.getElementById('gitem-' + imageId).remove();
+        primaryController.refresh();
       } else {
         alert(d.error || 'Could not delete image');
       }
