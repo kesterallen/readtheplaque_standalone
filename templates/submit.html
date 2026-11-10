@@ -100,6 +100,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="{{ url_for('static', filename='js/plaque-ocr.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7/dist/lite.umd.js"></script>
+<script src="{{ url_for('static', filename='js/image-primary.js') }}"></script>
 <script>
 initPlaqueOcr({
   buttonId: 'ocrRun',
@@ -118,6 +119,13 @@ const dz         = document.getElementById('dropZone');
 const fileInput  = document.getElementById('imageFile');
 const preview    = document.getElementById('imgPreview');
 const previewWrap= document.getElementById('imgPreviewWrap');
+const primaryController = createImagePrimaryController({
+  container: previewWrap,
+  badgeClass: 'submit-image-primary',
+  selectedClass: 'is-primary-image',
+  buttonText: '★ Set as primary',
+  selectedButtonText: '★ Primary image'
+});
 const gpsBadge   = document.getElementById('gpsBadge');
 
 dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
@@ -128,11 +136,8 @@ dz.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', () => { if (fileInput.files.length) handleFiles(fileInput.files); });
 
-let primaryImageIndex = 0;
-
 function handleFiles(files) {
   const selectedFiles = Array.from(files);
-  primaryImageIndex = 0;
   previewWrap.innerHTML = '';
 
   selectedFiles.forEach(function(file, i) {
@@ -140,6 +145,7 @@ function handleFiles(files) {
     // can finish out of order, so appending only inside onload misaligns indexes.
     const wrap = document.createElement('div');
     wrap.className = 'submit-image-preview';
+    wrap.setAttribute('data-image-item', '');
     wrap.style.cssText = 'position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:6px;margin:0 8px 8px 0';
 
     const img = document.createElement('img');
@@ -149,6 +155,7 @@ function handleFiles(files) {
 
     const primaryBadge = document.createElement('span');
     primaryBadge.className = 'submit-image-primary';
+    primaryBadge.setAttribute('data-primary-badge', '');
     primaryBadge.textContent = 'Primary';
     primaryBadge.style.cssText = 'display:none;background:var(--amber);color:#fff;font-size:11px;padding:3px 7px;border-radius:4px';
     wrap.appendChild(primaryBadge);
@@ -156,11 +163,9 @@ function handleFiles(files) {
     const primaryButton = document.createElement('button');
     primaryButton.type = 'button';
     primaryButton.className = 'eg-btn';
+    primaryButton.setAttribute('data-set-primary', '');
     primaryButton.textContent = '★ Set as primary';
     primaryButton.style.cssText = 'font-size:12px;padding:4px 8px';
-    primaryButton.addEventListener('click', function() {
-      setPrimaryPreview(i);
-    });
     wrap.appendChild(primaryButton);
 
     previewWrap.appendChild(wrap);
@@ -170,7 +175,7 @@ function handleFiles(files) {
     reader.readAsDataURL(file);
   });
 
-  updatePrimaryPreview();
+  primaryController.refresh(previewWrap.firstElementChild || null);
   previewWrap.style.display = selectedFiles.length ? 'flex' : 'none';
 
   // Extract GPS from first image only
@@ -186,24 +191,6 @@ function handleFiles(files) {
   }
 }
 
-function setPrimaryPreview(index) {
-  primaryImageIndex = index;
-  updatePrimaryPreview();
-}
-
-function updatePrimaryPreview() {
-  Array.from(previewWrap.children).forEach(function(wrap, index) {
-    const isPrimary = index === primaryImageIndex;
-    const img = wrap.querySelector('img');
-    const badge = wrap.querySelector('.submit-image-primary');
-    const button = wrap.querySelector('button');
-    img.style.borderColor = isPrimary ? 'var(--amber)' : 'var(--border)';
-    img.title = isPrimary ? 'Primary image' : '';
-    badge.style.display = isPrimary ? 'inline-block' : 'none';
-    button.textContent = isPrimary ? '★ Primary image' : '★ Set as primary';
-    button.disabled = isPrimary;
-  });
-}
 function handleFile(file) { handleFiles([file]); }
 
 // ── Picker map ────────────────────────────────────────────────────────────────
@@ -398,6 +385,7 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   const fd = new FormData();
   const uploadFiles = Array.from(fileInput.files);
   // The server treats the first uploaded image as primary.
+  const primaryImageIndex = primaryController.getPrimaryIndex();
   if (uploadFiles.length && primaryImageIndex > 0) {
     uploadFiles.unshift(uploadFiles.splice(primaryImageIndex, 1)[0]);
   }
@@ -455,7 +443,7 @@ function clearForm() {
   // Image previews and file input
   previewWrap.innerHTML = '';
   previewWrap.style.display = 'none';
-  primaryImageIndex = 0;
+  primaryController.refresh(null);
   fileInput.value = '';
 
   // Map marker and coords
