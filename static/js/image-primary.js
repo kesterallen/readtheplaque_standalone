@@ -38,6 +38,13 @@
         } else if (!selected && badge) {
           badge.remove();
         }
+        if (badge) badge.style.display = selected ? 'inline-block' : 'none';
+
+        var image = item.querySelector('img');
+        if (image && options.highlightImage) {
+          image.style.borderColor = selected ? 'var(--amber)' : 'var(--border)';
+          image.title = selected ? 'Primary image' : '';
+        }
 
         if (button) {
           button.disabled = selected;
