@@ -77,5 +77,51 @@ class ProposedPlaqueFixTests(unittest.TestCase):
         self.assertEqual(self.fixes(), [])
 
 
+    def test_admin_can_sort_by_proposed_fix_count(self):
+        with self.app.app_context():
+            with database.get_db() as db:
+                db.execute(
+                    """INSERT INTO plaques
+                       (slug, title, description, latitude, longitude, image_file, approved)
+                       VALUES (?, ?, ?, ?, ?, ?, 1)""",
+                    ("no-fix-plaque", "No Fix Plaque", "Description", 37.6, -122.3, "other.jpg"),
+                )
+                db.execute(
+                    "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
+                    (self.plaque_id, "Needs correction."),
+                )
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+
+        ascending = self.client.get("/admin/plaques?sort=proposed_fixes&dir=asc")
+        descending = self.client.get("/admin/plaques?sort=proposed_fixes&dir=desc")
+        self.assertLess(
+            ascending.get_data(as_text=True).index("No Fix Plaque"),
+            ascending.get_data(as_text=True).index("Test Plaque"),
+        )
+        self.assertLess(
+            descending.get_data(as_text=True).index("Test Plaque"),
+            descending.get_data(as_text=True).index("No Fix Plaque"),
+        )
+
+    def test_admin_can_clear_a_proposed_fix(self):
+        with self.app.app_context():
+            with database.get_db() as db:
+                cursor = db.execute(
+                    "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
+                    (self.plaque_id, "Remove this report."),
+                )
+                fix_id = cursor.lastrowid
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+
+        response = self.client.post(
+            f"/admin/proposed-fixes/{fix_id}/delete", follow_redirects=True
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.fixes(), [])
+        self.assertNotIn("Remove this report.", response.get_data(as_text=True))
+
+
 if __name__ == "__main__":
     unittest.main()
