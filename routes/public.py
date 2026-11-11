@@ -8,6 +8,7 @@ from markupsafe import Markup
 from flask import (
     Blueprint,
     abort,
+    flash,
     jsonify,
     redirect,
     render_template,
@@ -268,6 +269,29 @@ def _share_image(plaque: dict) -> tuple[str, str]:
     if size is not None and size <= SHARE_IMAGE_MAX_MB * 1024 * 1024:
         return _site_root() + plaque["image_url"], "summary_large_image"
     return _site_root() + plaque["thumb_url"], "summary"
+
+
+@public_bp.route("/plaque/<slug>/propose-fix", methods=["POST"])
+def propose_plaque_fix(slug):
+    """Let visitors flag an error on an approved plaque and explain the issue."""
+    comment = request.form.get("comment", "").strip()
+    if not comment:
+        flash("Please add a comment explaining the proposed fix.", "error")
+    elif len(comment) > 2000:
+        flash("Please keep the comment to 2,000 characters or fewer.", "error")
+    else:
+        with get_db() as db:
+            plaque = db.execute(
+                "SELECT id FROM plaques WHERE slug=? AND approved=1", (slug,)
+            ).fetchone()
+            if not plaque:
+                abort(404)
+            db.execute(
+                "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
+                (plaque["id"], comment),
+            )
+        flash("Thank you. Your proposed fix has been sent to the site administrators.", "success")
+    return redirect(url_for("public.plaque_detail", slug=slug) + "#propose-fix")
 
 
 @public_bp.route("/plaque/<slug>")
