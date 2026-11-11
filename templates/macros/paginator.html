@@ -2,7 +2,7 @@
 {% if total_pages > 1 %}
 <nav class="paginator" aria-label="{{ aria_label }}">
   {% if page > 1 %}
-    <a href="{{ base_url }}&page={{ page - 1 }}" aria-label="Previous">‹</a>
+    <a href="{{ base_url }}{{ '&' if '?' in base_url else '?' }}page={{ page - 1 }}" aria-label="Previous">‹</a>
   {% else %}
     <span class="disabled">‹</span>
   {% endif %}
@@ -11,14 +11,14 @@
     {% if p == page %}
       <span class="current">{{ p }}</span>
     {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
-      <a href="{{ base_url }}&page={{ p }}">{{ p }}</a>
+      <a href="{{ base_url }}{{ '&' if '?' in base_url else '?' }}page={{ p }}">{{ p }}</a>
     {% elif p == page - 3 or p == page + 3 %}
       <span class="ellipsis">…</span>
     {% endif %}
   {% endfor %}
 
   {% if page < total_pages %}
-    <a href="{{ base_url }}&page={{ page + 1 }}" aria-label="Next">›</a>
+    <a href="{{ base_url }}{{ '&' if '?' in base_url else '?' }}page={{ page + 1 }}" aria-label="Next">›</a>
   {% else %}
     <span class="disabled">›</span>
   {% endif %}
