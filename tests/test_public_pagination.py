@@ -98,10 +98,13 @@ class PublicPaginationTests(unittest.TestCase):
         page_two = self.client.get("/page/2")
         self.assertEqual(page_one.status_code, 200)
         self.assertEqual(page_two.status_code, 200)
-        self.assertIn("Showing page 1 of 2", page_one.get_data(as_text=True))
-        self.assertIn("Showing page 2 of 2", page_two.get_data(as_text=True))
-        self.assertNotIn('aria-label="Next"', page_two.get_data(as_text=True))
-        self.assertEqual(page_two.get_data(as_text=True).count('class="plaque-card"'), 2)
+        page_one_html = page_one.get_data(as_text=True)
+        page_two_html = page_two.get_data(as_text=True)
+
+        # Page one links to page two; page two has no next-page link.
+        self.assertIn('href="/?page=2"', page_one_html)
+        self.assertNotIn('aria-label="Next"', page_two_html)
+        self.assertEqual(page_two_html.count('class="plaque-card"'), 2)
 
     def test_path_page_number_takes_precedence_over_query_parameter(self):
         for number in range(5):
@@ -113,8 +116,13 @@ class PublicPaginationTests(unittest.TestCase):
         response = self.client.get("/search/2?q=Searchable&page=1")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Showing page 2 of 3", response.get_data(as_text=True))
-        self.assertEqual(response.get_data(as_text=True).count('class="plaque-card"'), 2)
+        html = response.get_data(as_text=True)
+        # The route's page=2 argument should select the second page, even
+        # though the query string asks for page=1.
+        self.assertIn("Searchable 2", html)
+        self.assertIn("Searchable 1", html)
+        self.assertNotIn("Searchable 4", html)
+        self.assertEqual(html.count('class="plaque-card"'), 2)
 
     def test_search_pagination_preserves_and_encodes_special_query_characters(self):
         for number in range(3):
