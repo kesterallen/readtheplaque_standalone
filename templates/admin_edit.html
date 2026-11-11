@@ -17,6 +17,17 @@
     </div>
   </div>
 
+  {% if proposed_fixes %}
+  <section class="form-section proposed-fixes-admin">
+    <h2>⚑ Proposed fixes ({{ proposed_fixes|length }})</h2>
+    <ul class="proposed-fix-list">
+      {% for fix in proposed_fixes %}
+      <li>{{ fix.comment }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   {% if errors %}
   <div class="errors">
     {% for e in errors %}⚠ {{ e }}<br>{% endfor %}
