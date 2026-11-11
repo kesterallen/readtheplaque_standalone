@@ -16,13 +16,14 @@
       {% endif %}
     </h1>
     {% if total %}
-    <form class="search-results-form" action="{{ url_for('public.search_page') }}" method="GET">
+<section class="search-section search-results-form" role="search">
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input type="text" name="q" value="{{ q }}" autocomplete="off" autofocus>
-        <button type="submit" class="search-submit-btn">Search</button>
+        <input type="text" id="resultsSearchInput" value="{{ q }}" placeholder="Search all plaques" autocomplete="off" aria-label="Search all plaques" autofocus>
+        <button id="resultsSearchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
       </div>
-    </form>
+      <div id="resultsSearchOverlay" class="search-results-overlay is-hidden"></div>
+    </section>
     {% endif %}
     {% elif mode == "nearby" %}
     <h1 class="search-results-title">
@@ -79,13 +80,14 @@
   <div class="index-map-panel search-no-results">
     {% if mode == "search" %}
       <p>Try a different search term.</p>
-      <form action="/search" method="GET">
-        <div class="search-box">
-          <span class="search-icon">🔍</span>
-          <input type="text" name="q" value="{{ q }}" autocomplete="off" autofocus>
-          <button type="submit" class="search-submit-btn">Search</button>
-        </div>
-      </form>
+<section class="search-section search-results-form" role="search">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="resultsSearchInput" value="{{ q }}" placeholder="Search all plaques" autocomplete="off" aria-label="Search all plaques" autofocus>
+        <button id="resultsSearchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
+      </div>
+      <div id="resultsSearchOverlay" class="search-results-overlay is-hidden"></div>
+    </section>
       <p><a href="{{ url_for('public.index') }}">← Back to home</a></p>
     {% elif mode == "nearby" %}
       <p>There are no approved plaques to show.</p>
@@ -123,5 +125,79 @@
 
 {% if paginator_url %}
   {{ paginator(page, total_pages, paginator_url) }}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if mode == "search" %}
+<script>
+(() => {
+  const input = document.getElementById('resultsSearchInput');
+  const clear = document.getElementById('resultsSearchClear');
+  const overlay = document.getElementById('resultsSearchOverlay');
+  if (!input || !clear || !overlay) return;
+  let timer;
+
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && input.value.trim()) {
+      window.location.href = '{{ url_for('public.search_page') }}?q=' + encodeURIComponent(input.value.trim());
+    }
+  });
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clear.classList.toggle('is-hidden', !q);
+    clearTimeout(timer);
+    if (!q) { overlay.classList.add('is-hidden'); return; }
+    timer = setTimeout(() => doSearch(q), 300);
+  });
+  clear.addEventListener('click', () => {
+    input.value = '';
+    clear.classList.add('is-hidden');
+    overlay.classList.add('is-hidden');
+    input.focus();
+  });
+
+  function esc(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function positionOverlay() {
+    const box = input.closest('.search-box').getBoundingClientRect();
+    overlay.style.top = (box.bottom + 1) + 'px';
+    overlay.style.left = box.left + 'px';
+    overlay.style.width = box.width + 'px';
+  }
+  async function doSearch(q) {
+    try {
+      const response = await fetch(`{{ url_for('api.search') }}?q=${encodeURIComponent(q)}`);
+      if (!response.ok) throw new Error('Search request failed');
+      const data = await response.json();
+      if (input.value.trim() !== q) return;
+      if (!data.length) {
+        overlay.innerHTML = `<div class="sr-empty">No plaques found for "<em>${esc(q)}</em>"</div>`;
+      } else {
+        overlay.innerHTML = data.map(plaque => `
+          <a href="/plaque/${esc(plaque.slug)}" class="sr-item">
+            <img src="${esc(plaque.thumb_url || plaque.image_url)}" alt="${esc(plaque.title)}">
+            <div class="sr-info"><strong>${esc(plaque.title)}</strong></div>
+          </a>`).join('');
+      }
+      positionOverlay();
+      overlay.classList.remove('is-hidden');
+    } catch (error) {
+      overlay.classList.add('is-hidden');
+    }
+  }
+  window.addEventListener('resize', () => {
+    if (!overlay.classList.contains('is-hidden')) positionOverlay();
+  });
+  window.addEventListener('scroll', () => {
+    if (!overlay.classList.contains('is-hidden')) positionOverlay();
+  });
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.search-results-form')) overlay.classList.add('is-hidden');
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}
