@@ -49,6 +49,12 @@
     <p class="tag-eyebrow">Tag</p>
     <h1 class="search-results-title tag-page-title"><span class="tag-pill tag-pill--large">{{ name }}</span></h1>
     <div class="search-results-sub tag-page-count">{{ total }} plaque{{ 's' if total != 1 }}</div>
+    {% elif mode == "submitter" %}
+    <h1 class="search-results-title tag-page-title">
+      {{ total }} result{{ 's' if total != 1 }} submitted by
+      <span class="tag-pill tag-pill--large">👤 {{ name }}</span>.
+      Showing page {{ page }} of {{ total_pages }}
+    </h1>
     {% else %}
     <p class="tag-eyebrow">Submitted by</p>
     <h1 class="search-results-title tag-page-title"><span class="tag-pill tag-pill--large">👤 {{ name }}</span></h1>
