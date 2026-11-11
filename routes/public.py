@@ -60,7 +60,9 @@ public_bp = Blueprint("public", __name__)
 @public_bp.route("/")
 @public_bp.route("/page/<int:page>")
 def index(page=1):
-    page = max(1, request.args.get("page", page, type=int)) 
+    # A page in the URL path (/page/2) takes precedence over a query parameter.
+    route_page = (request.view_args or {}).get("page")
+    page = max(1, route_page if route_page is not None else request.args.get("page", 1, type=int))
     offset = (page - 1) * PER_PAGE
 
     with get_db() as db:
@@ -85,7 +87,10 @@ def index(page=1):
 
     featured = plaque_to_dict(featured_row) if featured_row else None
     recent = [plaque_to_dict(r) for r in rows]
-    total_pages = max(1, -(-total // PER_PAGE))
+    # The featured plaque is shown separately on every page, not in the
+    # paginated recent list. Exclude it when calculating recent-list pages.
+    recent_total = max(0, total - (1 if featured_row else 0))
+    total_pages = max(1, -(-recent_total // PER_PAGE))
 
     return render_template(
         "index.html",
@@ -306,7 +311,9 @@ def plaque_detail(slug):
 @public_bp.route("/search")
 @public_bp.route("/search/<int:page>") # TODO: make this route work
 def search_page(page=1):
-    page = max(1, request.args.get("page", page, type=int)) # TODO: to make this route work this'll need to get skipped if page is specified in the route
+    # A page in the URL path (/search/2) takes precedence over a query parameter.
+    route_page = (request.view_args or {}).get("page")
+    page = max(1, route_page if route_page is not None else request.args.get("page", 1, type=int))
     offset = (page - 1) * PER_PAGE
 
     q = request.args.get("q", "").strip()
@@ -334,7 +341,7 @@ def search_page(page=1):
         "listing.html",
         mode="search",
         page_title=f"Search: {q} — Read The Plaque",
-        paginator_url="/search?q={q}",
+        paginator_url=url_for("public.search_page", q=q),
         map_id="search-map",
         list_heading="Results",
         q=q,
@@ -432,7 +439,7 @@ def tag_page(tag_name):
         filter_type="tag",
         mode="tag",
         page_title=f"#{tag_name} — Read The Plaque",
-        paginator_url=f"/tag/{tag_name}?",
+        paginator_url=url_for("public.tag_page", tag_name=tag_name),
         map_id="filter-map",
         list_heading="Plaques",
         name=tag_name,
@@ -468,7 +475,7 @@ def submitter_page(submitter_name):
         filter_type="submitter",
         mode="submitter",
         page_title=f"Submitted by {submitter_name} — Read The Plaque",
-        paginator_url=f"/submitter/{quote(submitter_name, safe='')}?",
+        paginator_url=url_for("public.submitter_page", submitter_name=submitter_name),
         map_id="filter-map",
         list_heading="Plaques",
         name=submitter_name,
