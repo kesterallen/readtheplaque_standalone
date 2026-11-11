@@ -130,13 +130,17 @@ def plaques():
     sort_col = request.args.get("sort", "created_at")
     sort_dir = request.args.get("dir", "desc")
 
-    allowed_cols = {"title", "created_at", "updated_at", "submitted_by", "approved"}
+    allowed_cols = {"title", "created_at", "updated_at", "submitted_by", "approved", "proposed_fixes"}
     if sort_col not in allowed_cols:
         sort_col = "created_at"
     if sort_dir not in ("asc", "desc"):
         sort_dir = "desc"
 
-    order_sql = f"ORDER BY {sort_col} {sort_dir.upper()}"
+    order_sql = (
+        f"ORDER BY proposed_fix_count {sort_dir.upper()}, plaques.id DESC"
+        if sort_col == "proposed_fixes"
+        else f"ORDER BY {sort_col} {sort_dir.upper()}"
+    )
 
     with get_db() as db:
         rows = db.execute(
@@ -330,6 +334,23 @@ def edit(plaque_id):
     else:
         url = url_for("admin.queue")
     return redirect(url)
+
+
+@admin_bp.route("/proposed-fixes/<int:fix_id>/delete", methods=["POST"])
+def proposed_fix_delete(fix_id):
+    """Remove one proposed-fix report from a plaque."""
+    if not is_admin():
+        return redirect(url_for("admin.login"))
+    with get_db() as db:
+        fix = db.execute(
+            "SELECT plaque_id FROM proposed_plaque_fixes WHERE id=?", (fix_id,)
+        ).fetchone()
+        if not fix:
+            abort(404)
+        plaque_id = fix["plaque_id"]
+        db.execute("DELETE FROM proposed_plaque_fixes WHERE id=?", (fix_id,))
+    return redirect(url_for("admin.edit", plaque_id=plaque_id))
+
 
 @admin_bp.route("/edit/no-text", methods=["GET"])
 def edit_no_text():
