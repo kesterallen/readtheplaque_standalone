@@ -114,6 +114,15 @@ def init_db() -> None:
             CREATE INDEX IF NOT EXISTS idx_plaque_images_hash        ON plaque_images(image_hash);
             CREATE INDEX IF NOT EXISTS idx_plaque_images_plauqe_hash ON plaque_images(plaque_id, image_hash);
 
+            CREATE TABLE IF NOT EXISTS proposed_plaque_fixes (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                plaque_id INTEGER NOT NULL REFERENCES plaques(id) ON DELETE CASCADE,
+                comment   TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_proposed_plaque_fixes_plaque
+                ON proposed_plaque_fixes(plaque_id);
+
             CREATE INDEX IF NOT EXISTS idx_plaques_approved_created ON plaques(approved, created_at DESC);
             """
         )
