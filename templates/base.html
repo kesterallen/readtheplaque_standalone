@@ -16,11 +16,14 @@
       <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
-      <form class="nav-search nav-search--desktop" action="{{ url_for('public.search_page') }}" method="get" role="search">
-        <label class="visually-hidden" for="navSearch">Search plaques</label>
-        <input id="navSearch" type="search" name="q" placeholder="Search plaques…" aria-label="Search plaques" required>
-        <button type="submit" aria-label="Search">⌕</button>
-      </form>
+      <section class="search-section nav-search-section nav-search--desktop" role="search">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="navSearch" placeholder="Search plaques…" autocomplete="off" aria-label="Search all plaques">
+          <button id="navSearchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
+        </div>
+        <div id="navSearchResults" class="search-results-overlay is-hidden"></div>
+      </section>
       <a href="{{ url_for('public.map_view') }}" class="nav-link" id="mapLink">Big Map</a>
       <a href="/nearby" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <!--<a href="/random" class="nav-link">Random</a>-->
@@ -33,11 +36,14 @@
 </header>
 
 <div class="mobile-nav" id="mobileNav">
-  <form class="nav-search nav-search--mobile" action="{{ url_for('public.search_page') }}" method="get" role="search">
-    <label class="visually-hidden" for="mobileNavSearch">Search plaques</label>
-    <input id="mobileNavSearch" type="search" name="q" placeholder="Search plaques…" aria-label="Search plaques" required>
-    <button type="submit">Search</button>
-  </form>
+  <section class="search-section nav-search-section nav-search--mobile" role="search">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="mobileNavSearch" placeholder="Search plaques…" autocomplete="off" aria-label="Search all plaques">
+      <button id="mobileNavSearchClear" class="search-clear is-hidden" aria-label="Clear">✕</button>
+    </div>
+    <div id="mobileNavSearchResults" class="search-results-overlay is-hidden"></div>
+  </section>
   <a href="{{ url_for('public.map_view') }}" class="mobile-nav-link" id="mapLinkMobile">Big Map</a>
   <a href="/nearby" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <!--<a href="/random" class="mobile-nav-link">Random</a>-->
@@ -81,6 +87,73 @@
   document.getElementById('navToggle').addEventListener('click', () => {
     document.getElementById('mobileNav').classList.toggle('open');
   });
+  // Navbar search uses the same live suggestions as the homepage search.
+  document.querySelectorAll('.nav-search-section').forEach(section => {
+    const input = section.querySelector('input');
+    const clear = section.querySelector('.search-clear');
+    const overlay = section.querySelector('.search-results-overlay');
+    let timer;
+
+    input.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && input.value.trim()) {
+        window.location.href = '{{ url_for('public.search_page') }}?q=' + encodeURIComponent(input.value.trim());
+      }
+    });
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      clear.classList.toggle('is-hidden', !q);
+      clearTimeout(timer);
+      if (!q) { overlay.classList.add('is-hidden'); return; }
+      timer = setTimeout(() => searchNavbar(q), 300);
+    });
+    clear.addEventListener('click', () => {
+      input.value = '';
+      clear.classList.add('is-hidden');
+      overlay.classList.add('is-hidden');
+      input.focus();
+    });
+
+    function positionOverlay() {
+      const box = section.querySelector('.search-box').getBoundingClientRect();
+      overlay.style.top = (box.bottom + 1) + 'px';
+      overlay.style.left = box.left + 'px';
+      overlay.style.width = box.width + 'px';
+    }
+    async function searchNavbar(q) {
+      try {
+        const data = await fetch(`{{ url_for('api.search') }}?q=${encodeURIComponent(q)}`).then(response => response.json());
+        if (input.value.trim() !== q) return;
+        if (!data.length) {
+          overlay.innerHTML = `<div class="sr-empty">No plaques found for "<em>${escapeSearchText(q)}</em>"</div>`;
+        } else {
+          overlay.innerHTML = data.map(plaque => `
+            <a href="/plaque/${escapeSearchText(plaque.slug)}" class="sr-item">
+              <img src="${escapeSearchText(plaque.thumb_url || plaque.image_url)}" alt="${escapeSearchText(plaque.title)}">
+              <div class="sr-info"><strong>${escapeSearchText(plaque.title)}</strong></div>
+            </a>`).join('');
+        }
+        positionOverlay();
+        overlay.classList.remove('is-hidden');
+      } catch (error) {
+        overlay.classList.add('is-hidden');
+      }
+    }
+    window.addEventListener('resize', () => {
+      if (!overlay.classList.contains('is-hidden')) positionOverlay();
+    });
+    window.addEventListener('scroll', () => {
+      if (!overlay.classList.contains('is-hidden')) positionOverlay();
+    });
+    document.addEventListener('click', event => {
+      if (!section.contains(event.target)) overlay.classList.add('is-hidden');
+    });
+  });
+
+  function escapeSearchText(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   // Turn on the Nearby Me link
   window.addEventListener('DOMContentLoaded', () => {
     const linkIds = [
