@@ -123,5 +123,30 @@ class ProposedPlaqueFixTests(unittest.TestCase):
         self.assertNotIn("Remove this report.", response.get_data(as_text=True))
 
 
+    def test_admin_list_summarizes_plaques_with_proposed_fixes(self):
+        with self.app.app_context():
+            with database.get_db() as db:
+                db.execute(
+                    """INSERT INTO plaques
+                       (slug, title, description, latitude, longitude, image_file, approved)
+                       VALUES (?, ?, ?, ?, ?, ?, 1)""",
+                    ("second-plaque", "Second Plaque", "Description", 37.6, -122.3, "second.jpg"),
+                )
+                db.execute(
+                    "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
+                    (self.plaque_id, "Needs correction."),
+                )
+                db.execute(
+                    "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
+                    (self.plaque_id, "Another correction."),
+                )
+        with self.client.session_transaction() as session:
+            session["admin"] = True
+
+        response = self.client.get("/admin/plaques")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("1 plaque with proposed fixes", response.get_data(as_text=True))
+
+
 if __name__ == "__main__":
     unittest.main()
