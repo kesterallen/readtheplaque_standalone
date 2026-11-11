@@ -8,7 +8,9 @@
     <div>
       <h1>All Plaques</h1>
       <p class="ap-total">{{ total }} plaque{{ 's' if total != 1 }}</p>
+      {% if plaques_with_proposed_fixes %}
       <p class="ap-total">{{ plaques_with_proposed_fixes }} plaque{{ 's' if plaques_with_proposed_fixes != 1 }} with proposed fixes</p>
+      {% endif %}
     </div>
     <div class="ap-header-links">
       <a href="/admin/queue">Approval queue</a>
