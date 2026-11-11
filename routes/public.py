@@ -274,23 +274,28 @@ def _share_image(plaque: dict) -> tuple[str, str]:
 @public_bp.route("/plaque/<slug>/propose-fix", methods=["POST"])
 def propose_plaque_fix(slug):
     """Let visitors flag an error on an approved plaque and explain the issue."""
-    comment = request.form.get("comment", "").strip()
-    if not comment:
-        flash("Please add a comment explaining the proposed fix.", "error")
-    elif len(comment) > 2000:
-        flash("Please keep the comment to 2,000 characters or fewer.", "error")
-    else:
-        with get_db() as db:
-            plaque = db.execute(
-                "SELECT id FROM plaques WHERE slug=? AND approved=1", (slug,)
-            ).fetchone()
-            if not plaque:
-                abort(404)
+    with get_db() as db:
+        plaque = db.execute(
+            "SELECT id FROM plaques WHERE slug=? AND approved=1", (slug,)
+        ).fetchone()
+        if not plaque:
+            abort(404)
+
+        comment = request.form.get("comment", "").strip()
+        if not comment:
+            flash("Please add a comment explaining the proposed fix.", "error")
+        elif len(comment) > 2000:
+            flash("Please keep the comment to 2,000 characters or fewer.", "error")
+        else:
             db.execute(
                 "INSERT INTO proposed_plaque_fixes (plaque_id, comment) VALUES (?, ?)",
                 (plaque["id"], comment),
             )
-        flash("Thank you. Your proposed fix has been sent to the site administrators.", "success")
+            flash(
+                "Thank you. Your proposed fix has been sent to the site administrators.",
+                "success",
+            )
+
     return redirect(url_for("public.plaque_detail", slug=slug) + "#propose-fix")
 
 
