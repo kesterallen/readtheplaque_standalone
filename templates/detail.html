@@ -60,6 +60,22 @@
     </div>
   </div>
 
+  <section class="propose-fix-section" id="propose-fix">
+    <h2>Found a problem with this plaque?</h2>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <p class="propose-fix-message propose-fix-message--{{ category }}" role="status">{{ message }}</p>
+      {% endfor %}
+    {% endwith %}
+    <p>If something on this page needs correcting, let us know what should be fixed.</p>
+    <form method="POST" action="{{ url_for('public.propose_plaque_fix', slug=plaque.slug) }}">
+      <label for="proposedFixComment">What needs fixing?</label>
+      <textarea id="proposedFixComment" name="comment" rows="4" maxlength="2000" required
+                placeholder="Describe the error or suggest a correction…"></textarea>
+      <button type="submit" class="btn-save">Send proposed fix</button>
+    </form>
+  </section>
+
   <div id="miniMap" class="mini-map"></div>
 
   <section class="nearby-section">
