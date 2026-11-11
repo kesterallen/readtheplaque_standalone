@@ -16,6 +16,11 @@
       <span class="logo-text">Read The Plaque</span>
     </a>
     <nav class="nav">
+      <form class="nav-search nav-search--desktop" action="{{ url_for('public.search_page') }}" method="get" role="search">
+        <label class="visually-hidden" for="navSearch">Search plaques</label>
+        <input id="navSearch" type="search" name="q" placeholder="Search plaques…" aria-label="Search plaques" required>
+        <button type="submit" aria-label="Search">⌕</button>
+      </form>
       <a href="{{ url_for('public.map_view') }}" class="nav-link" id="mapLink">Big Map</a>
       <a href="/nearby" class="nav-link" id="nearbyMeLink">Nearby Me</a>
       <!--<a href="/random" class="nav-link">Random</a>-->
@@ -28,6 +33,11 @@
 </header>
 
 <div class="mobile-nav" id="mobileNav">
+  <form class="nav-search nav-search--mobile" action="{{ url_for('public.search_page') }}" method="get" role="search">
+    <label class="visually-hidden" for="mobileNavSearch">Search plaques</label>
+    <input id="mobileNavSearch" type="search" name="q" placeholder="Search plaques…" aria-label="Search plaques" required>
+    <button type="submit">Search</button>
+  </form>
   <a href="{{ url_for('public.map_view') }}" class="mobile-nav-link" id="mapLinkMobile">Big Map</a>
   <a href="/nearby" class="mobile-nav-link" id="nearbyMeLinkMobile">Nearby Me</a>
   <!--<a href="/random" class="mobile-nav-link">Random</a>-->
