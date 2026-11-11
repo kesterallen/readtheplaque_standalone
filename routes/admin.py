@@ -140,7 +140,17 @@ def plaques():
 
     with get_db() as db:
         rows = db.execute(
-            f"SELECT * FROM plaques {where_sql} {order_sql} LIMIT ? OFFSET ?",
+            f"""
+            SELECT plaques.*, COUNT(proposed_plaque_fixes.id) AS proposed_fix_count,
+                   GROUP_CONCAT(proposed_plaque_fixes.comment, ' | ') AS proposed_fix_comments
+            FROM plaques
+            LEFT JOIN proposed_plaque_fixes
+                ON proposed_plaque_fixes.plaque_id = plaques.id
+            {where_sql}
+            GROUP BY plaques.id
+            {order_sql}
+            LIMIT ? OFFSET ?
+            """,
             (*params, per_page, offset),
         ).fetchall()
         total = db.execute(f"SELECT COUNT(*) FROM plaques {where_sql}", params).fetchone()[0]
@@ -209,6 +219,12 @@ def edit(plaque_id):
     if not row:
         abort(404)
 
+    with get_db() as db:
+        proposed_fixes = db.execute(
+            "SELECT id, comment FROM proposed_plaque_fixes WHERE plaque_id=? ORDER BY id DESC",
+            (plaque_id,),
+        ).fetchall()
+
     if request.method == "GET":
         with get_db() as db:
             tags = get_tags_for_plaque(db, plaque_id)
@@ -226,7 +242,7 @@ def edit(plaque_id):
             }
             for img in images
         ]
-        return render_template("admin_edit.html", plaque=plaque)
+        return render_template("admin_edit.html", plaque=plaque, proposed_fixes=proposed_fixes)
 
     # POST — save edits
     errors = []
@@ -274,7 +290,8 @@ def edit(plaque_id):
 
     if errors:
         return render_template(
-            "admin_edit.html", plaque=plaque_to_dict(row), errors=errors
+            "admin_edit.html", plaque=plaque_to_dict(row), errors=errors,
+            proposed_fixes=proposed_fixes
         )
 
     set_featured = bool(request.form.get("set_featured"))
