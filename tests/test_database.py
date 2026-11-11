@@ -37,7 +37,10 @@ class DatabaseTests(unittest.TestCase):
                 )
             }
 
-        self.assertTrue({"plaques", "tags", "plaque_tags", "plaque_images"} <= tables)
+        self.assertTrue({
+            "plaques", "tags", "plaque_tags", "plaque_images",
+            "proposed_plaque_fixes",
+        } <= tables)
 
     def test_set_tags_replaces_existing_tags_and_normalizes_names(self):
         with database.get_db() as db:
