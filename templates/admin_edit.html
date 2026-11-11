@@ -22,7 +22,13 @@
     <h2>⚑ Proposed fixes ({{ proposed_fixes|length }})</h2>
     <ul class="proposed-fix-list">
       {% for fix in proposed_fixes %}
-      <li>{{ fix.comment }}</li>
+      <li class="proposed-fix-item">
+        <span>{{ fix.comment }}</span>
+        <form method="POST" action="{{ url_for('admin.proposed_fix_delete', fix_id=fix.id) }}"
+              onsubmit="return confirm('Clear this proposed fix?');" style="display:inline">
+          <button type="submit" class="btn-cancel">Clear</button>
+        </form>
+      </li>
       {% endfor %}
     </ul>
   </section>
