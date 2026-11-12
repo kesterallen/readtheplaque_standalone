@@ -3,6 +3,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import database
 from app import create_app
@@ -59,6 +60,34 @@ class ProposedPlaqueFixTests(unittest.TestCase):
         self.assertIn("Proposed fixes", listing.get_data(as_text=True))
         self.assertEqual(editing.status_code, 200)
         self.assertIn("The location is incorrect.", editing.get_data(as_text=True))
+
+
+    def test_proposed_fix_requires_valid_hcaptcha_when_enabled(self):
+        with patch("routes.public.captcha_enabled", return_value=True), patch(
+            "routes.public.verify_captcha", return_value=(False, "CAPTCHA failed.")
+        ) as verify:
+            response = self.client.post(
+                "/plaque/test-plaque/propose-fix",
+                data={"comment": "Incorrect date.", "h-captcha-response": "bad-token"},
+                follow_redirects=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("CAPTCHA failed.", response.get_data(as_text=True))
+        verify.assert_called_once_with("bad-token")
+        self.assertEqual(self.fixes(), [])
+
+    def test_proposed_fix_verifies_hcaptcha_token_when_enabled(self):
+        with patch("routes.public.captcha_enabled", return_value=True), patch(
+            "routes.public.verify_captcha", return_value=(True, "")
+        ) as verify:
+            response = self.client.post(
+                "/plaque/test-plaque/propose-fix",
+                data={"comment": "Incorrect date.", "h-captcha-response": "valid-token"},
+                follow_redirects=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        verify.assert_called_once_with("valid-token")
+        self.assertEqual(len(self.fixes()), 1)
 
     def test_blank_and_overlong_comments_are_rejected(self):
         for comment in ("   ", "x" * 2001):
