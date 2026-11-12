@@ -148,6 +148,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="{{ url_for('static', filename='js/plaque-ocr.js') }}"></script>
 <script src="{{ url_for('static', filename='js/image-primary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
 <script>
 // OCR uses a newly selected image if present; otherwise it uses the current primary image.
 initPlaqueOcr({
@@ -167,152 +168,17 @@ initPlaqueOcr({
   }
 });
 
-// ── Map picker ────────────────────────────────────────────────────────────────
-var initLat = Number({{ plaque.latitude or 0 }});
-var initLng = Number({{ plaque.longitude or 0 }});
-var hasInitialCoords = Number.isFinite(initLat) && Number.isFinite(initLng)
-  && Math.abs(initLat) <= 90 && Math.abs(initLng) <= 180
-  && (initLat !== 0 || initLng !== 0);
+// ── Shared address and map picker ───────────────────────────────────────────
+var initialLat = Number({{ plaque.latitude or 0 }});
+var initialLng = Number({{ plaque.longitude or 0 }});
+var hasInitialCoords = Number.isFinite(initialLat) && Number.isFinite(initialLng)
+  && Math.abs(initialLat) <= 90 && Math.abs(initialLng) <= 180
+  && (initialLat !== 0 || initialLng !== 0);
 
-var pickerMap = makeMap('coordPicker', {
-  center: hasInitialCoords ? [initLng, initLat] : [0, 20],
-  zoom: hasInitialCoords ? 10 : 0
-});
-pickerMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-var marker = null;
-
-function setCoords(lat, lng, moveMap) {
-  lat = Number(lat);
-  lng = Number(lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)
-      || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
-
-  document.getElementById('latitude').value = lat.toFixed(6);
-  document.getElementById('longitude').value = lng.toFixed(6);
-
-  if (!marker) {
-    marker = new maplibregl.Marker({ color: '#d9534f', draggable: true })
-      .setLngLat([lng, lat])
-      .addTo(pickerMap);
-    marker.on('dragend', function() {
-      var ll = marker.getLngLat();
-      setCoords(ll.lat, ll.lng, false);
-    });
-  } else {
-    marker.setLngLat([lng, lat]);
-  }
-
-  if (moveMap) {
-    pickerMap.flyTo({
-      center: [lng, lat],
-      zoom: Math.max(pickerMap.getZoom(), 12)
-    });
-  }
-}
-
-pickerMap.on('click', function(e) {
-  setCoords(e.lngLat.lat, e.lngLat.lng, false);
-});
-
-if (hasInitialCoords) {
-  setCoords(initLat, initLng, false);
-}
-
-['latitude', 'longitude'].forEach(function(id) {
-  document.getElementById(id).addEventListener('change', function() {
-    var lat = parseFloat(document.getElementById('latitude').value);
-    var lng = parseFloat(document.getElementById('longitude').value);
-    if (!isNaN(lat) && !isNaN(lng)) setCoords(lat, lng, true);
-  });
-});
-
-// ── Address search (Nominatim / OpenStreetMap) ───────────────────────────────
-var addressSearch = document.getElementById('addressSearch');
-var addressResults = document.getElementById('addressResults');
-var addressSearchTimer = null;
-var addressSearchController = null;
-
-addressSearch.addEventListener('input', function() {
-  clearTimeout(addressSearchTimer);
-
-  var query = addressSearch.value.trim();
-  addressResults.innerHTML = '';
-  addressResults.style.display = 'none';
-
-  if (query.length < 3) return;
-  addressSearchTimer = setTimeout(function() { searchAddress(query); }, 300);
-});
-
-async function searchAddress(query) {
-  if (addressSearchController) addressSearchController.abort();
-  addressSearchController = new AbortController();
-
-  try {
-    var params = new URLSearchParams({
-      q: query,
-      format: 'jsonv2',
-      limit: '5',
-      addressdetails: '1',
-      email: 'info@readtheplaque.com'
-    });
-
-    var response = await fetch(
-      'https://nominatim.openstreetmap.org/search?' + params.toString(),
-      {
-        signal: addressSearchController.signal,
-        headers: {
-          'Accept': 'application/json',
-          'Referer': 'https://readtheplaque.com'
-        }
-      }
-    );
-
-    if (!response.ok) throw new Error('Nominatim request failed');
-
-    var results = await response.json();
-    addressResults.innerHTML = '';
-
-    if (!results.length) {
-      addressResults.style.display = 'none';
-      return;
-    }
-
-    results.forEach(function(result) {
-      var item = document.createElement('button');
-      item.type = 'button';
-      item.className = 'address-result';
-      item.textContent = result.display_name;
-      item.setAttribute('role', 'option');
-
-      item.addEventListener('click', function() {
-        var lat = parseFloat(result.lat);
-        var lng = parseFloat(result.lon);
-        if (!isNaN(lat) && !isNaN(lng)) {
-          addressSearch.value = result.display_name;
-          setCoords(lat, lng, true);
-          addressResults.innerHTML = '';
-          addressResults.style.display = 'none';
-        }
-      });
-
-      addressResults.appendChild(item);
-    });
-
-    addressResults.style.display = 'block';
-  } catch (err) {
-    if (err.name !== 'AbortError') {
-      console.error('Address search failed:', err);
-      addressResults.innerHTML = '';
-      addressResults.style.display = 'none';
-    }
-  }
-}
-
-document.addEventListener('click', function(e) {
-  if (!addressSearch.contains(e.target) && !addressResults.contains(e.target)) {
-    addressResults.style.display = 'none';
-  }
+var addressPicker = initAddressPicker({
+  mapId: 'coordPicker',
+  initialCoords: hasInitialCoords ? { lat: initialLat, lng: initialLng } : null,
+  initialZoom: 10
 });
 
 // ── Drop zone drag/drop wiring for gallery input ──────────────────────────────
