@@ -112,6 +112,15 @@
 
     <div class="form-section">
       <h2>📍 Location</h2>
+      <div class="form-group">
+        <label for="addressSearch">Search for an address</label>
+        <input type="text" id="addressSearch"
+               placeholder="e.g. 123 Main St, Boston, MA"
+               autocomplete="off">
+        <div id="addressResults" class="address-results" role="listbox"
+             aria-label="Address search results"></div>
+        <p class="field-hint">Search OpenStreetMap for an address, then select a result.</p>
+      </div>
       <div id="coordPicker"></div>
       <div class="coord-row">
         <div class="form-group form-group--tight">
@@ -159,40 +168,151 @@ initPlaqueOcr({
 });
 
 // ── Map picker ────────────────────────────────────────────────────────────────
-var initLat = {{ plaque.latitude }};
-var initLng = {{ plaque.longitude }};
+var initLat = Number({{ plaque.latitude or 0 }});
+var initLng = Number({{ plaque.longitude or 0 }});
+var hasInitialCoords = Number.isFinite(initLat) && Number.isFinite(initLng)
+  && Math.abs(initLat) <= 90 && Math.abs(initLng) <= 180
+  && (initLat !== 0 || initLng !== 0);
 
-var pickerMap = makeMap('coordPicker', { center: [initLng, initLat], zoom: 10 });
+var pickerMap = makeMap('coordPicker', {
+  center: hasInitialCoords ? [initLng, initLat] : [0, 20],
+  zoom: hasInitialCoords ? 10 : 0
+});
 pickerMap.addControl(new maplibregl.NavigationControl(), 'top-right');
 
-var marker = new maplibregl.Marker({ color: '#d9534f', draggable: true })
-  .setLngLat([initLng, initLat])
-  .addTo(pickerMap);
+var marker = null;
 
-function setCoords(lat, lng) {
-  document.getElementById('latitude').value  = lat.toFixed(6);
+function setCoords(lat, lng, moveMap) {
+  lat = Number(lat);
+  lng = Number(lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)
+      || Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+
+  document.getElementById('latitude').value = lat.toFixed(6);
   document.getElementById('longitude').value = lng.toFixed(6);
+
+  if (!marker) {
+    marker = new maplibregl.Marker({ color: '#d9534f', draggable: true })
+      .setLngLat([lng, lat])
+      .addTo(pickerMap);
+    marker.on('dragend', function() {
+      var ll = marker.getLngLat();
+      setCoords(ll.lat, ll.lng, false);
+    });
+  } else {
+    marker.setLngLat([lng, lat]);
+  }
+
+  if (moveMap) {
+    pickerMap.flyTo({
+      center: [lng, lat],
+      zoom: Math.max(pickerMap.getZoom(), 12)
+    });
+  }
 }
 
-marker.on('dragend', function() {
-  var ll = marker.getLngLat();
-  setCoords(ll.lat, ll.lng);
+pickerMap.on('click', function(e) {
+  setCoords(e.lngLat.lat, e.lngLat.lng, false);
 });
 
-pickerMap.on('click', function(e) {
-  marker.setLngLat(e.lngLat);
-  setCoords(e.lngLat.lat, e.lngLat.lng);
-});
+if (hasInitialCoords) {
+  setCoords(initLat, initLng, false);
+}
 
 ['latitude', 'longitude'].forEach(function(id) {
   document.getElementById(id).addEventListener('change', function() {
     var lat = parseFloat(document.getElementById('latitude').value);
     var lng = parseFloat(document.getElementById('longitude').value);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      marker.setLngLat([lng, lat]);
-      pickerMap.setView([lat, lng]);
-    }
+    if (!isNaN(lat) && !isNaN(lng)) setCoords(lat, lng, true);
   });
+});
+
+// ── Address search (Nominatim / OpenStreetMap) ───────────────────────────────
+var addressSearch = document.getElementById('addressSearch');
+var addressResults = document.getElementById('addressResults');
+var addressSearchTimer = null;
+var addressSearchController = null;
+
+addressSearch.addEventListener('input', function() {
+  clearTimeout(addressSearchTimer);
+
+  var query = addressSearch.value.trim();
+  addressResults.innerHTML = '';
+  addressResults.style.display = 'none';
+
+  if (query.length < 3) return;
+  addressSearchTimer = setTimeout(function() { searchAddress(query); }, 300);
+});
+
+async function searchAddress(query) {
+  if (addressSearchController) addressSearchController.abort();
+  addressSearchController = new AbortController();
+
+  try {
+    var params = new URLSearchParams({
+      q: query,
+      format: 'jsonv2',
+      limit: '5',
+      addressdetails: '1',
+      email: 'info@readtheplaque.com'
+    });
+
+    var response = await fetch(
+      'https://nominatim.openstreetmap.org/search?' + params.toString(),
+      {
+        signal: addressSearchController.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Referer': 'https://readtheplaque.com'
+        }
+      }
+    );
+
+    if (!response.ok) throw new Error('Nominatim request failed');
+
+    var results = await response.json();
+    addressResults.innerHTML = '';
+
+    if (!results.length) {
+      addressResults.style.display = 'none';
+      return;
+    }
+
+    results.forEach(function(result) {
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'address-result';
+      item.textContent = result.display_name;
+      item.setAttribute('role', 'option');
+
+      item.addEventListener('click', function() {
+        var lat = parseFloat(result.lat);
+        var lng = parseFloat(result.lon);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          addressSearch.value = result.display_name;
+          setCoords(lat, lng, true);
+          addressResults.innerHTML = '';
+          addressResults.style.display = 'none';
+        }
+      });
+
+      addressResults.appendChild(item);
+    });
+
+    addressResults.style.display = 'block';
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Address search failed:', err);
+      addressResults.innerHTML = '';
+      addressResults.style.display = 'none';
+    }
+  }
+}
+
+document.addEventListener('click', function(e) {
+  if (!addressSearch.contains(e.target) && !addressResults.contains(e.target)) {
+    addressResults.style.display = 'none';
+  }
 });
 
 // ── Drop zone drag/drop wiring for gallery input ──────────────────────────────
