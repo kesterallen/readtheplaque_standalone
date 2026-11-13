@@ -184,7 +184,7 @@ function handleFiles(files) {
   if (selectedFiles[0]) {
     exifr.gps(selectedFiles[0]).then(coords => {
       if (coords && coords.latitude != null && coords.longitude != null) {
-        setCoords(coords.latitude, coords.longitude);
+        addressPicker.setCoords(coords.latitude, coords.longitude, true);
         gpsBadge.style.display = 'block';
       } else {
         gpsBadge.style.display = 'none';
