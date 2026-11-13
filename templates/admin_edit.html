@@ -112,6 +112,15 @@
 
     <div class="form-section">
       <h2>📍 Location</h2>
+      <div class="form-group">
+        <label for="addressSearch">Search for an address</label>
+        <input type="text" id="addressSearch"
+               placeholder="e.g. 123 Main St, Boston, MA"
+               autocomplete="off">
+        <div id="addressResults" class="address-results" role="listbox"
+             aria-label="Address search results"></div>
+        <p class="field-hint">Search OpenStreetMap for an address, then select a result.</p>
+      </div>
       <div id="coordPicker"></div>
       <div class="coord-row">
         <div class="form-group form-group--tight">
@@ -139,6 +148,7 @@
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="{{ url_for('static', filename='js/plaque-ocr.js') }}"></script>
 <script src="{{ url_for('static', filename='js/image-primary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
 <script>
 // OCR uses a newly selected image if present; otherwise it uses the current primary image.
 initPlaqueOcr({
@@ -158,41 +168,17 @@ initPlaqueOcr({
   }
 });
 
-// ── Map picker ────────────────────────────────────────────────────────────────
-var initLat = {{ plaque.latitude }};
-var initLng = {{ plaque.longitude }};
+// ── Shared address and map picker ───────────────────────────────────────────
+var initialLat = Number({{ plaque.latitude or 0 }});
+var initialLng = Number({{ plaque.longitude or 0 }});
+var hasInitialCoords = Number.isFinite(initialLat) && Number.isFinite(initialLng)
+  && Math.abs(initialLat) <= 90 && Math.abs(initialLng) <= 180
+  && (initialLat !== 0 || initialLng !== 0);
 
-var pickerMap = makeMap('coordPicker', { center: [initLng, initLat], zoom: 10 });
-pickerMap.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-var marker = new maplibregl.Marker({ color: '#d9534f', draggable: true })
-  .setLngLat([initLng, initLat])
-  .addTo(pickerMap);
-
-function setCoords(lat, lng) {
-  document.getElementById('latitude').value  = lat.toFixed(6);
-  document.getElementById('longitude').value = lng.toFixed(6);
-}
-
-marker.on('dragend', function() {
-  var ll = marker.getLngLat();
-  setCoords(ll.lat, ll.lng);
-});
-
-pickerMap.on('click', function(e) {
-  marker.setLngLat(e.lngLat);
-  setCoords(e.lngLat.lat, e.lngLat.lng);
-});
-
-['latitude', 'longitude'].forEach(function(id) {
-  document.getElementById(id).addEventListener('change', function() {
-    var lat = parseFloat(document.getElementById('latitude').value);
-    var lng = parseFloat(document.getElementById('longitude').value);
-    if (!isNaN(lat) && !isNaN(lng)) {
-      marker.setLngLat([lng, lat]);
-      pickerMap.setView([lat, lng]);
-    }
-  });
+var addressPicker = initAddressPicker({
+  mapId: 'coordPicker',
+  initialCoords: hasInitialCoords ? { lat: initialLat, lng: initialLng } : null,
+  initialZoom: 10
 });
 
 // ── Drop zone drag/drop wiring for gallery input ──────────────────────────────

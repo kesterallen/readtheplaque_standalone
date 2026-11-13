@@ -34,6 +34,7 @@ from services.submissions import create_submission
 from spam import (
     check_content,
     check_honeypot,
+    captcha_enabled,
     check_rate_limit,
     HONEYPOT_FIELD,
     verify_captcha,
@@ -282,6 +283,12 @@ def propose_plaque_fix(slug):
             abort(404)
 
         comment = request.form.get("comment", "").strip()
+        if captcha_enabled():
+            captcha_token = request.form.get("h-captcha-response", "")
+            captcha_ok, captcha_err = verify_captcha(captcha_token)
+            if not captcha_ok:
+                flash(captcha_err, "error")
+                return redirect(url_for("public.plaque_detail", slug=slug) + "#propose-fix")
         if not comment:
             flash("Please add a comment explaining the proposed fix.", "error")
         elif len(comment) > 2000:
@@ -332,7 +339,11 @@ def plaque_detail(slug):
         "card": card,
     }
     return render_template(
-        "detail.html", plaque=plaque, share=share, is_admin=session.get("admin", False)
+        "detail.html",
+        plaque=plaque,
+        share=share,
+        is_admin=session.get("admin", False),
+        hcaptcha_sitekey=HCAPTCHA_SITEKEY if captcha_enabled() else "",
     )
 
 
