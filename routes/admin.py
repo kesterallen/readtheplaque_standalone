@@ -158,7 +158,7 @@ def plaques():
             (*params, per_page, offset),
         ).fetchall()
         total = db.execute(f"SELECT COUNT(*) FROM plaques {where_sql}", params).fetchone()[0]
-        plaques_with_proposed_fixes = db.execute(
+        num_proposed_fixes = db.execute(
             f"""
             SELECT COUNT(DISTINCT plaques.id)
             FROM plaques
@@ -168,6 +168,13 @@ def plaques():
             """,
             params,
         ).fetchone()[0]
+        num_to_approve = db.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM plaques
+            WHERE approved = 0
+            """
+        ).fetchone()[0]
 
     total_pages = max(1, -(-total // per_page))
     return render_template(
@@ -176,7 +183,8 @@ def plaques():
         page=page,
         total_pages=total_pages,
         total=total,
-        plaques_with_proposed_fixes=plaques_with_proposed_fixes,
+        num_proposed_fixes=num_proposed_fixes,
+        num_to_approve=num_to_approve,
         status=status,
         q=q,
         sort=sort_col,

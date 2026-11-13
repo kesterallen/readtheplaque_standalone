@@ -8,8 +8,11 @@
     <div>
       <h1>All Plaques</h1>
       <p class="ap-total">{{ total }} plaque{{ 's' if total != 1 }}</p>
-      {% if plaques_with_proposed_fixes %}
-      <p class="ap-total">{{ plaques_with_proposed_fixes }} plaque{{ 's' if plaques_with_proposed_fixes != 1 }} with proposed fixes</p>
+      {% if num_proposed_fixes %}
+      <p class="ap-total">{{ num_proposed_fixes }} plaque{{ 's' if num_proposed_fixes != 1 }} with proposed fixes</p>
+      {% endif %}
+      {% if num_to_approve %}
+      <p class="ap-total">{{ num_to_approve }} plaque{{ 's' if num_to_approve != 1 }} to approve</p>
       {% endif %}
     </div>
     <div class="ap-header-links">
