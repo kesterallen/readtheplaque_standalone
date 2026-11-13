@@ -15,39 +15,17 @@
   <div id="alertBox" class="alert-box"></div>
 
   <div class="form-section">
-    <h2>📝 Details</h2>
+    <h2>Title</h2>
     <div class="form-group">
-      <label for="title">Plaque Title *</label>
       <input type="text" id="title" placeholder="e.g. Site of the First Town Hall">
       <p id="slugHint" class="slug-hint is-hidden" aria-live="polite"></p>
     </div>
-    <div class="form-group">
-      <label for="description">Plaque Text (optional)</label>
-      <textarea id="description" rows="20" placeholder="Transcribe the text from the plaque…"></textarea>
-      <div class="form-group plaque-ocr-controls">
-        <button type="button" class="btn-cancel" id="ocrRun">Recognize text from photo</button>
-        <button type="button" class="btn-cancel" id="ocrCancel" style="display:none">Cancel OCR</button>
-        <progress id="ocrProgress" value="0" max="100" style="display:block;width:100%;margin-top:8px"></progress>
-        <p id="ocrStatus" class="field-hint" aria-live="polite" style="display:none"></p>
-        <button type="button" class="btn-cancel" id="ocrInsert" style="display:none">Insert recognized text</button>
-      </div>
-    </div>
-    <div class="form-group">
-      <label for="submittedBy">Your Name (optional)</label>
-      <input type="text" id="submittedBy" placeholder="Anonymous">
-    </div>
-    <div class="form-group">
-      <label for="tags">Tags (optional)</label>
-      <input type="text" id="tags" name="tags" placeholder="e.g. history, war, boston — comma separated">
-      <p class="field-hint">Separate multiple tags with commas</p>
-    </div>
-  </div>
 
   <div class="form-section">
-    <h2>📸 Photo</h2>
+    <h2>Photo</h2>
     <div class="drop-zone" id="dropZone">
       <input type="file" id="imageFile" name="images" accept="image/*" multiple>
-      <div class="dz-icon">🏛️</div>
+      <div class="dz-icon"></div>
       <div class="dz-text">Drop images here or <strong>click to browse</strong><br><small>JPEG, PNG, WebP · up to {{ max_file_mb }} MB per photo, {{ max_upload_mb }} MB in total · choose the primary image below</small></div>
     </div>
     <div id="imgPreviewWrap" class="img-preview-wrap"></div>
@@ -55,17 +33,17 @@
   </div>
 
   <div class="form-section">
-    <h2>📍 Pin Location</h2>
-    <p class="coord-hint">Coordinates are filled automatically if your photo has GPS data. Otherwise click the map or type them in.</p>
+    <h2>Location</h2>
+    <p class="coord-hint">Coordinates are filled automatically if your photo has GPS data. Otherwise click the map, search the address, or type in the lat/lng.</p>
+    <p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>
 
     <div class="form-group">
       <label for="addressSearch">Search for an address</label>
       <input type="text" id="addressSearch"
-             placeholder="e.g. 123 Main St, Boston, MA"
+             placeholder="e.g. 123 Main St, Boston, MA -- Search for an address and select a result"
              autocomplete="off">
       <div id="addressResults" class="address-results" role="listbox"
            aria-label="Address search results"></div>
-      <p class="field-hint">Search OpenStreetMap for an address, then select a result.</p>
     </div>
 
     <div id="locationPicker"></div>
@@ -79,7 +57,30 @@
         <input type="text" id="longitude" placeholder="e.g. -74.0060">
       </div>
     </div>
-    <p class="coord-hint"><a href="#" id="geolocateBtn" class="link-accent">Use my current location</a></p>
+  </div>
+
+  <div class="form-section">
+    <h2>Plaque Text (optional)</h2>
+    <div class="form-group">
+      <textarea id="description" rows="20" placeholder="Transcribe the text from the plaque…"></textarea>
+      <div class="form-group plaque-ocr-controls">
+        <button type="button" class="btn-cancel" id="ocrRun">Recognize text from photo</button>
+        <button type="button" class="btn-cancel" id="ocrCancel" style="display:none">Cancel OCR</button>
+        <progress id="ocrProgress" value="0" max="100" style="display:block;width:100%;margin-top:8px"></progress>
+        <p id="ocrStatus" class="field-hint" aria-live="polite" style="display:none"></p>
+        <button type="button" class="btn-cancel" id="ocrInsert" style="display:none">Insert recognized text</button>
+      </div>
+    </div>
+
+    <h2>Your Name (optional)</h2>
+    <div class="form-group">
+      <input type="text" id="submittedBy" placeholder="Anonymous">
+    </div>
+
+    <h2>Tags (optional)</h2>
+    <div class="form-group">
+      <input type="text" id="tags" name="tags" placeholder="e.g. history, war, boston — Separate multiple tags with commas">
+    </div>
   </div>
 
   {# Honeypot — hidden from real users, filled by bots #}
