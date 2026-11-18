@@ -284,30 +284,66 @@ document.getElementById('submitBtn').addEventListener('click', async () => {
   btn.textContent = 'Submitting…';
 
   try {
-    const res  = await fetch('/submit', { method: 'POST', body: fd });
-    const data = await res.json();
-    if (data.ok) {
-      alertBox.className = 'alert alert-success';
-      alertBox.innerHTML =
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
-        'Thanks! Your plaque has been submitted and is awaiting approval. ' +
-        'It will appear on the map <a href="/map/' + data.lat + '/' + data.lng + '/5">here</a> ' +
-        'and be at the URL <a href="/plaque/' + data.slug + '">' + data.slug + '</a> ' +
-        'once it is approved.<br/>' +
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
-        '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
-      alertBox.style.display = 'block';
-      announceBox.innerHTML = '';
-      clearForm();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      showErrors(data.errors || ['Submission failed.']);
+    let res;
+    try {
+      // Keep this catch limited to fetch itself. Errors in response parsing or
+      // success-page cleanup must not be mislabeled as network failures.
+      res = await fetch('/submit', { method: 'POST', body: fd });
+    } catch (e) {
+      showErrors([
+        'The connection was interrupted before a response arrived. ' +
+        'Your plaque may nevertheless have been saved. Please check the map ' +
+        'or your plaque URL before submitting it again.'
+      ]);
+      return;
     }
-  } catch (e) {
-    showErrors(['Network error — please try again.']);
+
+    let data;
+    try {
+      const responseText = await res.text();
+      data = responseText ? JSON.parse(responseText) : null;
+    } catch (e) {
+      showErrors([
+        'The server returned a response that the page could not read. ' +
+        'Your plaque may nevertheless have been saved. Please check the map ' +
+        'or your plaque URL before submitting it again.'
+      ]);
+      return;
+    }
+
+    if (!res.ok || !data || !data.ok) {
+      showErrors((data && data.errors) || [
+        'Submission failed (HTTP ' + res.status + '). Please review the form and try again.'
+      ]);
+      return;
+    }
+
+    // The server has confirmed success. Show that result before attempting
+    // optional client-side cleanup, so a cleanup error cannot look like a
+    // failed submission.
+    alertBox.className = 'alert alert-success';
+    alertBox.innerHTML =
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+      'Thanks! Your plaque has been submitted and is awaiting approval. ' +
+      'It will appear on the map <a href="/map/' + data.lat + '/' + data.lng + '/5">here</a> ' +
+      'and be at the URL <a href="/plaque/' + data.slug + '">' + data.slug + '</a> ' +
+      'once it is approved.<br/>' +
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>' +
+      '🎉🎉🎉🎉🎉🎉🎉🎉🎉<br/>';
+    alertBox.style.display = 'block';
+    announceBox.innerHTML = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    try {
+      clearForm();
+    } catch (cleanupError) {
+      // Submission is already confirmed; leave the entered values visible
+      // rather than replacing the success message with a misleading error.
+      console.warn('Submission succeeded, but the form could not be cleared:', cleanupError);
+    }
   } finally {
     resetCaptcha();
     btn.disabled    = false;
