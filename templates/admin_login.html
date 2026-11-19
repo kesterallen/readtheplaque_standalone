@@ -4,13 +4,19 @@
 <div class="login-page">
   <h1 class="login-title">Admin Login</h1>
   <p class="login-sub">Access the approval queue.</p>
-  <form method="POST">
+  <form method="POST" action="{{ url_for('admin.login') }}">
     {% if error %}
     <div class="login-error">{{ error }}</div>
     {% endif %}
     <div class="form-group">
       <label for="password">Password</label>
-      <input type="password" id="password" name="password" autofocus>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        autocomplete="current-password"
+        required
+      >
     </div>
     <button type="submit" class="btn-save btn-save--full">Sign In</button>
   </form>
