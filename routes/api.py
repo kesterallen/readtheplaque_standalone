@@ -210,3 +210,18 @@ def plaque(plaque_id):
     d = plaque_to_dict(row)
     d["tags"] = tags
     return jsonify(d)
+
+
+@api_bp.route("/plaques/random")
+def random_plaque():
+    """Return one approved plaque by ID, with tags."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT * FROM plaques WHERE approved=1 ORDER BY RANDOM() LIMIT 1"
+        ).fetchone()
+        if not row:
+            abort(404)
+        tags = get_tags_for_plaque(db, row["id"])
+    d = plaque_to_dict(row)
+    d["tags"] = tags
+    return jsonify(d)
